@@ -51,6 +51,7 @@ class CrewmaticBot:
             max_concurrent=self.settings["max_concurrent_agents"],
             timeout=self.settings["claude_timeout"],
             cwd=self.config.get("_config_dir", os.getcwd()),
+            skip_permissions=self.settings.get("skip_permissions", True),
         )
 
         # Slack setup
