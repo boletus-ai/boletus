@@ -19,6 +19,7 @@ from .config import load_config
 from .llm import CrewmaticError
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
+from .guardrails import CircuitBreaker, CircuitBrokenError, ExecutionGuard
 from .integrations import resolve_integrations_for_agent, build_mcp_config_for_integrations
 from .project_manager import ProjectManager
 from .scheduler import Scheduler
@@ -102,6 +103,13 @@ class CrewmaticBot:
         owner = self.config.get("owner", {})
         self.owner_slack_id = owner.get("slack_id", "")
 
+        # Safety guardrails
+        cb = CircuitBreaker(
+            max_failures=self.settings.get("max_consecutive_failures", 3),
+            reset_after=self.settings.get("circuit_reset_minutes", 10) * 60,
+        )
+        self.guardrails = ExecutionGuard(cb, agent_names=set(self.agents.keys()))
+
         # Scheduler
         self.scheduler = Scheduler(
             agents=self.agents,
@@ -111,6 +119,7 @@ class CrewmaticBot:
             call_agent_fn=self.call_agent,
             post_fn=self.post_to_channel,
             handle_delegations_fn=self._handle_delegations,
+            guardrails=self.guardrails,
         )
 
         # Register Slack event handlers
@@ -235,6 +244,12 @@ class CrewmaticBot:
         if not agent:
             return f"Agent {agent_name} doesn't exist."
 
+        # Safety guard — check circuit breaker before calling
+        allowed, reason = self.guardrails.can_execute(agent_name)
+        if not allowed:
+            logger.warning(f"Guard blocked {agent_name}: {reason}")
+            raise CircuitBrokenError(agent_name, reason)
+
         if context:
             message = f"Previous conversation context:\n{context}\n\nNew message:\n{message}"
 
@@ -276,15 +291,23 @@ class CrewmaticBot:
         # MCP server config for this agent
         mcp_config = self._build_mcp_config(agent)
 
-        return self.claude.call(
-            system_prompt=agent.system_prompt,
-            user_message=full_prompt,
-            model=agent.model,
-            allowed_tools=agent.tools,
-            cwd=cwd,
-            env_overrides=env_overrides if env_overrides else None,
-            mcp_config=mcp_config,
-        )
+        try:
+            result = self.claude.call(
+                system_prompt=agent.system_prompt,
+                user_message=full_prompt,
+                model=agent.model,
+                allowed_tools=agent.tools,
+                cwd=cwd,
+                env_overrides=env_overrides if env_overrides else None,
+                mcp_config=mcp_config,
+            )
+            self.guardrails.circuit_breaker.record_success(agent_name)
+            return result
+        except Exception:
+            tripped = self.guardrails.circuit_breaker.record_failure(agent_name)
+            if tripped:
+                raise CircuitBrokenError(agent_name, "consecutive failures exceeded threshold")
+            raise
 
     def _handle_delegations(self, source_agent: str, response: str):
         agent_names = set(self.agents.keys())
@@ -445,6 +468,23 @@ class CrewmaticBot:
             with self._bot_msg_lock:
                 self.recent_bot_messages[channel_id] = time.time()
             self._handle_delegations(agent_name, response)
+        except CircuitBrokenError as e:
+            logger.error(f"Circuit breaker tripped for {agent_name}: {e}")
+            alert = (
+                f"ALERT: Agent *{agent_name.upper()}* has been paused — "
+                f"circuit breaker tripped after consecutive failures.\n"
+                f"Last error: {e.last_error}\n"
+                f"The agent will auto-reset after "
+                f"{self.settings.get('circuit_reset_minutes', 10)} minutes."
+            )
+            # Post alert to the agent's own channel
+            agent = self.agents.get(agent_name)
+            if agent:
+                self.post_to_channel(agent.channel, alert, agent_name=agent_name)
+            # Also alert the leader channel
+            leader = get_leader(self.agents)
+            if leader and (not agent or leader.channel != agent.channel):
+                self.post_to_channel(leader.channel, alert, agent_name=leader.name)
         except CrewmaticError as e:
             logger.error(f"Agent {agent_name} LLM error: {e}")
             try:
@@ -619,6 +659,8 @@ class CrewmaticBot:
         self.agents[name] = agent
         # Update scheduler's agent reference too
         self.scheduler.agents = self.agents
+        # Keep guardrails in sync
+        self.guardrails.set_known_agents(set(self.agents.keys()))
         if is_new:
             threading.Thread(
                 target=self.scheduler.agent_work_loop,

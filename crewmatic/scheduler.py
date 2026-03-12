@@ -71,6 +71,7 @@ class Scheduler:
         call_agent_fn,
         post_fn,
         handle_delegations_fn,
+        guardrails=None,
     ):
         self.agents = agents
         self.config = config
@@ -81,6 +82,7 @@ class Scheduler:
         self.call_agent = call_agent_fn
         self.post = post_fn
         self.handle_delegations = handle_delegations_fn
+        self.guardrails = guardrails
 
         owner = config.get("owner", {})
         self.owner_mention = owner.get("slack_id", "")
@@ -190,6 +192,14 @@ class Scheduler:
                 if not self.project_manager.is_active():
                     time.sleep(30)
                     continue
+
+                # Check guardrails before claiming work
+                if self.guardrails:
+                    allowed, reason = self.guardrails.can_execute(agent_name)
+                    if not allowed:
+                        logger.warning(f"[{agent_name.upper()}] Skipping — {reason}")
+                        time.sleep(poll_interval)
+                        continue
 
                 task = self.task_manager.claim_task(agent_name)
                 if not task:
