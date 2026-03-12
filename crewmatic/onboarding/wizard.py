@@ -2,6 +2,7 @@
 
 import enum
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -40,6 +41,7 @@ class SetupSession:
     state: SetupState
     business_description: str = ""
     tech_details: str = ""
+    uploaded_docs: list[str] = field(default_factory=list)
     proposed_yaml: str = ""
     proposed_config: dict | None = None
     created_channels: list[str] = field(default_factory=list)
@@ -114,10 +116,80 @@ class SetupWizard:
         )
 
     # ------------------------------------------------------------------
+    # File upload handling
+    # ------------------------------------------------------------------
+
+    def _process_files(
+        self,
+        files: list[dict],
+        session: SetupSession,
+        channel_id: str,
+        thread_ts: str,
+        say: Callable,
+    ) -> str:
+        """Download, parse, and save uploaded files. Returns extracted text."""
+        from .file_parser import process_slack_files, SUPPORTED_EXTENSIONS
+        from pathlib import Path
+
+        bot_token = self.app.client.token
+
+        # Filter to supported files and tell user what we're processing
+        supported = [f for f in files if Path(f.get("name", "")).suffix.lower() in SUPPORTED_EXTENSIONS]
+        unsupported = [f for f in files if f not in supported]
+
+        if unsupported:
+            names = ", ".join(f.get("name", "?") for f in unsupported)
+            say(
+                text=f"I can't read these file types yet: {names}\nSupported: .pdf, .docx, .md, .txt, .csv, .json, .yaml",
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+
+        if not supported:
+            return ""
+
+        names = ", ".join(f.get("name", "?") for f in supported)
+        say(
+            text=f"Reading {names}...",
+            channel=channel_id,
+            thread_ts=thread_ts,
+        )
+
+        results = process_slack_files(
+            files=supported,
+            bot_token=bot_token,
+            context_dir=os.path.join(self.config_dir, "context"),
+        )
+
+        if not results:
+            say(
+                text="I couldn't extract text from the uploaded files. Try a different format.",
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+            return ""
+
+        # Build combined text and track in session
+        parts = []
+        for filename, text in results:
+            session.uploaded_docs.append(filename)
+            parts.append(f"--- Content from {filename} ---\n{text}")
+
+        combined = "\n\n".join(parts)
+
+        say(
+            text=f"Got it! Extracted content from {len(results)} file(s). I'll use this to design your team.",
+            channel=channel_id,
+            thread_ts=thread_ts,
+        )
+
+        return combined
+
+    # ------------------------------------------------------------------
     # Message routing
     # ------------------------------------------------------------------
 
-    def _handle_message(self, user_id: str, text: str, channel_id: str, thread_ts: str, say: Callable):
+    def _handle_message(self, user_id: str, text: str, channel_id: str, thread_ts: str, say: Callable, files: list | None = None):
         """Main router — dispatches to the handler for the current session state."""
         if self.owner_slack_id and user_id != self.owner_slack_id:
             say(
@@ -128,6 +200,12 @@ class SetupWizard:
             return
 
         session = self._get_or_create_session(user_id)
+
+        # Process uploaded files
+        if files:
+            file_text = self._process_files(files, session, channel_id, thread_ts, say)
+            if file_text:
+                text = f"{text}\n\n{file_text}" if text else file_text
 
         if session.state == SetupState.AWAITING_BUSINESS:
             self._handle_business(session, text, channel_id, thread_ts, say)
@@ -506,14 +584,17 @@ class SetupWizard:
             text = re.sub(r"<@[A-Z0-9]+>\s*", "", event.get("text", "")).strip()
             channel_id = event.get("channel", "")
             thread_ts = event.get("thread_ts", event.get("ts", ""))
-            self._handle_message(user_id, text, channel_id, thread_ts, say)
+            files = event.get("files", [])
+            self._handle_message(user_id, text, channel_id, thread_ts, say, files=files)
 
         @self.app.event("message")
         def handle_message(event, say):
             # Only handle DMs (channel type "im")
             if event.get("channel_type") != "im":
                 return
-            if event.get("subtype"):
+            # Allow file_share subtype (user uploaded a file)
+            subtype = event.get("subtype")
+            if subtype and subtype != "file_share":
                 return
             if event.get("bot_id"):
                 return
@@ -522,7 +603,8 @@ class SetupWizard:
             text = event.get("text", "")
             channel_id = event.get("channel", "")
             thread_ts = event.get("thread_ts", event.get("ts", ""))
-            self._handle_message(user_id, text, channel_id, thread_ts, say)
+            files = event.get("files", [])
+            self._handle_message(user_id, text, channel_id, thread_ts, say, files=files)
 
         @self.app.action("setup_confirm")
         def handle_confirm_action(ack, body):
