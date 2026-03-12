@@ -2,13 +2,12 @@
 
 **Your first AI company** — Open-source multi-agent framework that runs your business autonomously via Slack + Claude.
 
-Define your AI team in a single YAML file. Each agent has a role, tools, and a Slack channel. They plan, delegate, execute, and report — autonomously.
+Tell the bot about your business in Slack. It builds your AI team, creates channels, and starts working — autonomously.
 
 ```
 pip install crewmatic
-crewmatic init
-# edit crew.yaml
-crewmatic run
+crewmatic setup
+# The bot DMs you in Slack and walks you through everything
 ```
 
 ## How it works
@@ -28,24 +27,15 @@ crewmatic run
 4. **Memory** — each agent has a persistent markdown memory file
 5. **Reports** — scheduled progress reports at configured hours
 
-## Quick start
+## Getting Started
 
-### Prerequisites
-
-- Python 3.11+
-- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
-- Slack workspace with a [Socket Mode app](https://api.slack.com/apis/socket-mode)
-
-### Setup
+### 1. Install and connect Slack
 
 ```bash
-mkdir my-ai-company && cd my-ai-company
-crewmatic init        # creates crew.yaml + directories
+pip install crewmatic
 ```
 
-Edit `crew.yaml` — define your agents, Slack channels, and projects.
-
-Set environment variables:
+Create a [Slack Socket Mode app](https://api.slack.com/apis/socket-mode) and set your tokens:
 
 ```bash
 export SLACK_BOT_TOKEN="xoxb-..."
@@ -53,30 +43,85 @@ export SLACK_APP_TOKEN="xapp-..."
 export OWNER_SLACK_ID="U01234567"
 ```
 
-Create Slack channels matching your agent config (e.g., `#lead`, `#developer`, `#marketer`).
+You also need [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated, and Python 3.11+.
 
-Check your setup:
-
-```bash
-crewmatic doctor          # validates prerequisites
-```
-
-Then start:
+### 2. Run the setup wizard
 
 ```bash
-crewmatic run
+crewmatic setup
 ```
 
-### Optional: Per-agent bot identities
+The bot DMs you in Slack and walks you through everything:
 
-Each agent can have its own Slack bot identity:
+```
+You: I run an e-commerce store selling handmade jewelry.
+     I need help with product descriptions, SEO, and customer support.
+
+Crewmatic: Great! I'll set up your team. A few questions:
+           - Do you have a website/codebase I should know about?
+           - Any specific tools or platforms you use?
+
+You: We use Shopify, and our site is mystore.com
+
+Crewmatic: Here's your proposed AI team:
+
+           👑 MANAGER (#manager) — coordinates the team
+           ✏️ CONTENT_WRITER (#content-writer) — product descriptions
+           🔍 SEO_SPECIALIST (#seo) — search optimization
+           💬 SUPPORT_AGENT (#support) — customer inquiries
+
+           [Create this team] [Make changes] [Start over]
+```
+
+Hit **Create this team** — Crewmatic creates the Slack channels, generates your `crew.yaml`, and starts the agents.
+
+### 3. Evolve your team
+
+Need more help later? Just ask:
+
+```
+@crewmatic: I need a designer
+```
+
+The bot adds the agent, creates the channel, and integrates it with your existing team.
+
+## CLI commands
 
 ```bash
-export SLACK_BOT_TOKEN_CEO="xoxb-..."
-export SLACK_BOT_TOKEN_CTO="xoxb-..."
+crewmatic setup             # Slack-guided setup wizard
+crewmatic run               # Start the bot (auto-runs setup if no config)
+crewmatic run -v            # Start with debug logging
+crewmatic init              # Create crew.yaml scaffold (manual setup)
+crewmatic validate          # Check crew.yaml without starting
+crewmatic agents            # List configured agents
+crewmatic tasks             # Show task board
+crewmatic tasks --all       # Include completed tasks
+crewmatic doctor            # Check prerequisites
 ```
 
-## Configuration
+## Slack commands
+
+Message any agent channel or mention the bot:
+
+| Command | Description |
+|---------|-------------|
+| `standup` | Run team standup |
+| `report` | Run progress report |
+| `tasks` | Show task board |
+| `my tasks` | Show tasks for this channel's agent |
+| `cancel #42 reason` | Cancel a task |
+| `start <project>` | Activate a project |
+| `stop` | Stop current project |
+| `status` | Show project status |
+| `help` | List commands |
+
+## Advanced: Manual Configuration
+
+If you prefer to configure everything by hand, skip the wizard and edit `crew.yaml` directly:
+
+```bash
+crewmatic init        # creates crew.yaml scaffold
+```
 
 Everything lives in `crew.yaml`:
 
@@ -138,34 +183,14 @@ projects:
 | `stuck_timeout_minutes` | 10 | Reset stuck tasks after this |
 | `skip_permissions` | true | Pass `--dangerously-skip-permissions` to Claude CLI |
 
-## CLI commands
+### Optional: Per-agent bot identities
+
+Each agent can have its own Slack bot identity:
 
 ```bash
-crewmatic init              # Create crew.yaml scaffold
-crewmatic run               # Start the bot
-crewmatic run -v            # Start with debug logging
-crewmatic validate          # Check crew.yaml without starting
-crewmatic agents            # List configured agents
-crewmatic tasks             # Show task board
-crewmatic tasks --all       # Include completed tasks
-crewmatic doctor            # Check prerequisites
+export SLACK_BOT_TOKEN_CEO="xoxb-..."
+export SLACK_BOT_TOKEN_CTO="xoxb-..."
 ```
-
-## Slack commands
-
-Message any agent channel or mention the bot:
-
-| Command | Description |
-|---------|-------------|
-| `standup` | Run team standup |
-| `report` | Run progress report |
-| `tasks` | Show task board |
-| `my tasks` | Show tasks for this channel's agent |
-| `cancel #42 reason` | Cancel a task |
-| `start <project>` | Activate a project |
-| `stop` | Stop current project |
-| `status` | Show project status |
-| `help` | List commands |
 
 ## Context injection
 
