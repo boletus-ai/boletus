@@ -23,10 +23,12 @@ def parse_delegations(response: str, agent_names: set[str]) -> list[tuple[str, s
     delegations = []
     for line in response.split("\n"):
         for agent_name in agent_names:
+            escaped = re.escape(agent_name)
+            escaped_upper = re.escape(agent_name.upper())
             patterns = [
-                rf"@{agent_name}[:\s]+(.+)",
-                rf"\*\*{agent_name.upper()}\*\*[:\s]+(.+)",
-                rf"\*{agent_name.upper()}\*[:\s]+(.+)",
+                rf"@{escaped}\b[:\s]+(.+)",
+                rf"\*\*{escaped_upper}\*\*[:\s]+(.+)",
+                rf"\*{escaped_upper}\*[:\s]+(.+)",
             ]
             for pattern in patterns:
                 match = re.search(pattern, line, re.IGNORECASE)

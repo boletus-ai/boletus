@@ -2,13 +2,24 @@
 
 __version__ = "0.1.0"
 
+# Lightweight imports (no external dependencies)
 from .agent_loader import AgentConfig, load_agents, get_leader
-from .claude_runner import ClaudeRunner
 from .config import load_config
+from .delegation import parse_delegations, handle_delegations
 from .task_manager import TaskManager
 from .project_manager import ProjectManager
-from .delegation import parse_delegations, handle_delegations
-from .bot import CrewmaticBot
+
+
+def __getattr__(name):
+    """Lazy imports for modules with heavy dependencies (slack, dotenv)."""
+    if name == "CrewmaticBot":
+        from .bot import CrewmaticBot
+        return CrewmaticBot
+    if name == "ClaudeRunner":
+        from .claude_runner import ClaudeRunner
+        return ClaudeRunner
+    raise AttributeError(f"module 'crewmatic' has no attribute {name!r}")
+
 
 __all__ = [
     "AgentConfig",
