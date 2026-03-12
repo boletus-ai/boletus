@@ -144,6 +144,18 @@ def cmd_run(args):
     return 0
 
 
+def cmd_local(args):
+    """Start local terminal REPL (no Slack required)."""
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    from .local_runner import start_local
+    start_local(config_path=args.config)
+    return 0
+
+
 def cmd_validate(args):
     """Validate crew.yaml without starting."""
     logging.basicConfig(level=logging.WARNING)
@@ -300,6 +312,11 @@ def main():
     run_parser.add_argument("-c", "--config", help="Path to crew.yaml")
     run_parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
 
+    # local
+    local_parser = subparsers.add_parser("local", help="Start local terminal REPL (no Slack)")
+    local_parser.add_argument("-c", "--config", help="Path to crew.yaml")
+    local_parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
+
     # validate
     val_parser = subparsers.add_parser("validate", help="Validate crew.yaml")
     val_parser.add_argument("-c", "--config", help="Path to crew.yaml")
@@ -325,6 +342,7 @@ def main():
     commands = {
         "init": cmd_init,
         "run": cmd_run,
+        "local": cmd_local,
         "validate": cmd_validate,
         "agents": cmd_agents,
         "tasks": cmd_tasks,
