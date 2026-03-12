@@ -382,8 +382,17 @@ class CrewmaticBot:
                 "  stop — Stop current project\n"
                 "  status — Show current project status\n"
                 "  projects — List available projects\n"
+                "  add agent / hire — Add a new agent\n"
                 "  help — Show this help"
             )
+
+        if text_lower.startswith("add agent") or text_lower.startswith("new agent") or text_lower.startswith("hire"):
+            threading.Thread(
+                target=self._handle_add_agent,
+                args=(text, channel_name),
+                daemon=True,
+            ).start()
+            return "Let me think about what agent would help..."
 
         return None
 
@@ -503,6 +512,87 @@ class CrewmaticBot:
                     ],
                 },
             )
+
+    def _handle_add_agent(self, request_text: str, channel_name: str):
+        """Generate and add a new agent based on natural language request."""
+        try:
+            import yaml
+            from .onboarding.prompts import ADD_AGENT_PROMPT
+            from .onboarding.crew_generator import merge_agent_into_config
+
+            # Get current agents as YAML for context
+            existing_agents = yaml.dump({"agents": {
+                name: {"role": a.role, "channel": a.channel, "system_prompt": a.system_prompt[:200]}
+                for name, a in self.agents.items()
+            }})
+
+            prompt = ADD_AGENT_PROMPT.format(
+                request=request_text,
+                existing_agents_yaml=existing_agents,
+            )
+
+            response = self.claude.call(
+                system_prompt="You generate agent configurations for Crewmatic. Output ONLY valid YAML.",
+                user_message=prompt,
+                model="sonnet",
+            )
+
+            # Parse the response as YAML
+            agent_data = yaml.safe_load(response)
+            if not agent_data or not isinstance(agent_data, dict):
+                self.post_to_channel(channel_name, "Failed to generate agent config. Try again with more details.")
+                return
+
+            # Get the agent name and config
+            agent_name = list(agent_data.keys())[0]
+            agent_config = agent_data[agent_name]
+
+            # Save to crew.yaml
+            config_path = self.config.get("_config_path", "crew.yaml")
+            merge_agent_into_config(config_path, agent_name, agent_config)
+
+            # Hot-reload
+            self.reload_agent(agent_name, agent_config)
+
+            self.post_to_channel(
+                channel_name,
+                f"Added new agent: *{agent_name.upper()}* (#{agent_config['channel']})\n"
+                f"Role: {agent_config.get('role', 'worker')}\n"
+                f"Worker loop started. The agent is ready to receive tasks.",
+            )
+        except Exception as e:
+            logger.error(f"Failed to add agent: {e}")
+            self.post_to_channel(channel_name, f"Failed to add agent: {e}")
+
+    def reload_agent(self, name: str, raw_agent: dict):
+        """Hot-reload a single agent. Creates worker loop if new."""
+        from .agent_loader import AgentConfig, _default_context_for_role
+
+        role = raw_agent.get("role", "worker")
+        agent = AgentConfig(
+            name=name,
+            channel=raw_agent["channel"],
+            system_prompt=raw_agent["system_prompt"],
+            model=raw_agent.get("model", "sonnet"),
+            role=role,
+            tools=raw_agent.get("tools"),
+            delegates_to=raw_agent.get("delegates_to", []),
+            reports_to=raw_agent.get("reports_to"),
+            receives_context=raw_agent.get("receives_context", _default_context_for_role(role)),
+        )
+        is_new = name not in self.agents
+        self.agents[name] = agent
+        # Update scheduler's agent reference too
+        self.scheduler.agents = self.agents
+        if is_new:
+            threading.Thread(
+                target=self.scheduler.agent_work_loop,
+                args=(name,),
+                daemon=True,
+                name=f"worker-{name}",
+            ).start()
+            logger.info(f"Started worker loop for new agent: {name}")
+        self.build_channel_map()
 
     def start(self):
         """Start the bot with all loops."""
