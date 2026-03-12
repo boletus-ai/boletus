@@ -164,11 +164,12 @@ def build_prompt(
         if parts:
             prompt += f"\n\n--- BUSINESS CONTEXT ---\n" + "\n\n".join(parts) + "\n--- END BUSINESS CONTEXT ---"
 
-    # Team channel updates
+    # Team channel updates (cache key includes agent to avoid cross-agent stale data)
     if "team_channels" in receives_context and client:
         exclude = {owner_channel} if owner_channel else set()
+        cache_key = f"team_channels:{agent_name}"
         team_updates = _cached(
-            "team_channels",
+            cache_key,
             lambda: load_team_channels(client, channel_map, exclude),
             ttl=cache_ttl,
         )
