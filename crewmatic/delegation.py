@@ -45,18 +45,38 @@ def handle_delegations(
     response: str,
     agent_names: set[str],
     add_task_fn,
+    existing_tasks: list[dict] | None = None,
 ):
     """Parse delegations and add them to the task board.
+
+    Deduplicates against existing open tasks by checking title similarity.
 
     Args:
         source_agent: Name of the agent whose response we're parsing.
         response: The LLM response text.
         agent_names: Set of valid agent names.
         add_task_fn: Callable(title, assigned_to, created_by) to create tasks.
+        existing_tasks: Current open tasks for deduplication. If None, no dedup.
     """
+    # Build set of existing task titles (lowered) for dedup
+    existing_titles = set()
+    if existing_tasks:
+        for t in existing_tasks:
+            if t.get("status") in ("todo", "in_progress"):
+                existing_titles.add(t["title"].lower().strip())
+
     delegations = parse_delegations(response, agent_names)
+    seen = set()  # Dedup within same response
     for target_agent, task_desc in delegations:
         if target_agent == source_agent:
             continue
+        dedup_key = (target_agent, task_desc.lower().strip())
+        if dedup_key in seen:
+            logger.debug(f"Skipping duplicate delegation: {task_desc[:60]}")
+            continue
+        if task_desc.lower().strip() in existing_titles:
+            logger.debug(f"Skipping already-on-board task: {task_desc[:60]}")
+            continue
+        seen.add(dedup_key)
         logger.info(f"Delegation: {source_agent} -> {target_agent}: {task_desc[:80]}")
         add_task_fn(task_desc, assigned_to=target_agent, created_by=source_agent)

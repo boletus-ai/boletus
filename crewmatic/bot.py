@@ -243,11 +243,13 @@ class CrewmaticBot:
 
     def _handle_delegations(self, source_agent: str, response: str):
         agent_names = set(self.agents.keys())
+        existing_tasks = self.task_manager.get_tasks()
         _handle_delegations(
             source_agent=source_agent,
             response=response,
             agent_names=agent_names,
             add_task_fn=self.task_manager.add_task,
+            existing_tasks=existing_tasks,
         )
 
     def _auto_save_leader_context(self, project_key: str):
