@@ -35,7 +35,14 @@ crewmatic setup
 pip install crewmatic
 ```
 
-Create a [Slack Socket Mode app](https://api.slack.com/apis/socket-mode) and set your tokens:
+Create a Slack app using the included manifest:
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From a manifest**
+2. Select your workspace, paste the contents of [`slack-manifest.yaml`](slack-manifest.yaml), and click **Create**
+3. Click **Install to Workspace** and authorize
+4. Copy **Bot User OAuth Token** (`xoxb-...`) from **OAuth & Permissions**
+5. Generate an **App-Level Token** with the `connections:write` scope under **Basic Information** → **App-Level Tokens** — copy the `xapp-...` token
+6. Get your Slack user ID: open your profile → click the three dots → **Copy member ID**
 
 ```bash
 export SLACK_BOT_TOKEN="xoxb-..."
