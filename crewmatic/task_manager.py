@@ -56,7 +56,7 @@ class TaskManager:
         with self._lock:
             tasks = self._load()
             task = {
-                "id": len(tasks) + 1,
+                "id": max((t["id"] for t in tasks), default=0) + 1,
                 "title": title,
                 "assigned_to": assigned_to,
                 "created_by": created_by,
