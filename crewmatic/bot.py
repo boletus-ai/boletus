@@ -106,11 +106,19 @@ class CrewmaticBot:
     def build_channel_map(self):
         """Build channel name/ID mappings and discover bot user IDs."""
         try:
-            result = self.app.client.conversations_list(types="public_channel")
-            for ch in result["channels"]:
-                self.channel_name_to_id[ch["name"]] = ch["id"]
-                self.channel_id_to_name[ch["id"]] = ch["name"]
-            logger.info(f"Channel map: {list(self.channel_name_to_id.keys())}")
+            cursor = None
+            while True:
+                kwargs = {"types": "public_channel", "limit": 200}
+                if cursor:
+                    kwargs["cursor"] = cursor
+                result = self.app.client.conversations_list(**kwargs)
+                for ch in result["channels"]:
+                    self.channel_name_to_id[ch["name"]] = ch["id"]
+                    self.channel_id_to_name[ch["id"]] = ch["name"]
+                cursor = result.get("response_metadata", {}).get("next_cursor")
+                if not cursor:
+                    break
+            logger.info(f"Channel map: {len(self.channel_name_to_id)} channels")
         except Exception as e:
             logger.error(f"Failed to build channel map: {e}")
 
