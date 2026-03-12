@@ -22,6 +22,7 @@ DEFAULT_SETTINGS = {
     "loop_cooldown": 30,
     "stuck_timeout_minutes": 10,
     "archive_after_days": 30,
+    "llm_backend": "cli",
 }
 
 ENV_VAR_PATTERN = re.compile(r"\$\{(\w+)\}")

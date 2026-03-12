@@ -13,8 +13,9 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk import WebClient
 
 from .agent_loader import AgentConfig, load_agents, get_leader
-from .claude_runner import ClaudeRunner, CrewmaticError
+from .claude_runner import ClaudeRunner
 from .config import load_config
+from .llm import CrewmaticError
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
 from .project_manager import ProjectManager
@@ -47,12 +48,22 @@ class CrewmaticBot:
             data_dir=self.config["data_dir"],
         )
 
-        self.claude = ClaudeRunner(
-            max_concurrent=self.settings["max_concurrent_agents"],
-            timeout=self.settings["claude_timeout"],
-            cwd=self.config.get("_config_dir", os.getcwd()),
-            skip_permissions=self.settings.get("skip_permissions", True),
-        )
+        llm_backend = self.settings.get("llm_backend", "cli")
+        if llm_backend == "api":
+            from .llm import AnthropicAPIRunner
+            self.claude = AnthropicAPIRunner(
+                max_concurrent=self.settings["max_concurrent_agents"],
+                timeout=self.settings["claude_timeout"],
+            )
+            logger.info("Using Anthropic API backend")
+        else:
+            self.claude = ClaudeRunner(
+                max_concurrent=self.settings["max_concurrent_agents"],
+                timeout=self.settings["claude_timeout"],
+                cwd=self.config.get("_config_dir", os.getcwd()),
+                skip_permissions=self.settings.get("skip_permissions", True),
+            )
+            logger.info("Using Claude CLI backend")
 
         # Slack setup
         slack_config = self.config.get("slack", {})
