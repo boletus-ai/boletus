@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 
 from .agent_loader import AgentConfig, get_leader, get_delegation_targets
+from .context import append_agent_memory
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +134,13 @@ class Scheduler:
         response = self.call_agent(leader.name, prompt)
         self.post(leader.channel, f"Planning — {datetime.now().strftime('%H:%M')}\n\n{response}", agent_name=leader.name)
         self.handle_delegations(leader.name, response)
+
+        # Persist planning decisions to leader memory
+        memory_dir = self.config.get("memory_dir", "./memory")
+        append_agent_memory(
+            leader.name, memory_dir,
+            f"Planning session — delegated tasks:\n{response[:500]}",
+        )
         return response
 
     def run_standup(self):
@@ -180,6 +188,13 @@ class Scheduler:
         logger.info("Running leader report...")
         response = self.call_agent(leader.name, prompt)
         self.post(leader.channel, response, agent_name=leader.name)
+
+        # Persist report to leader memory
+        memory_dir = self.config.get("memory_dir", "./memory")
+        append_agent_memory(
+            leader.name, memory_dir,
+            f"Progress report sent to owner:\n{response[:500]}",
+        )
 
     def agent_work_loop(self, agent_name: str):
         """Continuous work loop for a single agent."""
@@ -236,6 +251,14 @@ class Scheduler:
                 )
                 logger.info(f"[{agent_name.upper()}] Completed task #{task_id}")
                 self.handle_delegations(agent_name, response)
+
+                # Auto-persist to memory
+                memory_dir = self.config.get("memory_dir", "./memory")
+                summary = response[:300].strip()
+                append_agent_memory(
+                    agent_name, memory_dir,
+                    f"Completed task #{task_id}: {task_title}\n\nResult: {summary}",
+                )
                 time.sleep(10)
 
             except Exception as e:

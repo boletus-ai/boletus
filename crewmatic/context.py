@@ -36,6 +36,45 @@ def load_agent_memory(agent_name: str, memory_dir: str) -> str:
         return ""
 
 
+def append_agent_memory(agent_name: str, memory_dir: str, entry: str) -> None:
+    """Append a timestamped entry to an agent's memory file.
+
+    This is called automatically after task completion so agents
+    maintain a persistent log even if they don't self-update.
+    """
+    from datetime import datetime
+
+    os.makedirs(memory_dir, exist_ok=True)
+    memory_file = os.path.join(memory_dir, f"{agent_name}.md")
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    block = f"\n\n## [{timestamp}]\n{entry}\n"
+
+    # Append — don't overwrite agent's own edits
+    try:
+        with open(memory_file, "a") as f:
+            f.write(block)
+    except OSError as e:
+        logger.error(f"Failed to write memory for {agent_name}: {e}")
+
+    # Trim if file gets too large (keep last 50KB)
+    try:
+        size = os.path.getsize(memory_file)
+        if size > 50_000:
+            with open(memory_file) as f:
+                content = f.read()
+            # Keep the last ~40KB (trim from front)
+            trimmed = content[-40_000:]
+            # Find first heading to avoid mid-entry cut
+            idx = trimmed.find("\n## [")
+            if idx > 0:
+                trimmed = trimmed[idx:]
+            with open(memory_file, "w") as f:
+                f.write(f"# {agent_name.upper()} — Memory (auto-trimmed)\n{trimmed}")
+    except OSError:
+        pass
+
+
 def load_slack_context(client: WebClient, channel_name_to_id: dict, context_channel: str = "context") -> str:
     """Read messages from a designated context Slack channel."""
     channel_id = channel_name_to_id.get(context_channel)
