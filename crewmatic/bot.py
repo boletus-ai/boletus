@@ -13,7 +13,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk import WebClient
 
 from .agent_loader import AgentConfig, load_agents, get_leader
-from .claude_runner import ClaudeRunner
+from .claude_runner import ClaudeRunner, CrewmaticError
 from .config import load_config
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
@@ -380,6 +380,16 @@ class CrewmaticBot:
             with self._bot_msg_lock:
                 self.recent_bot_messages[channel_id] = time.time()
             self._handle_delegations(agent_name, response)
+        except CrewmaticError as e:
+            logger.error(f"Agent {agent_name} LLM error: {e}")
+            try:
+                client = self.get_agent_client(agent_name)
+                client.chat_postMessage(
+                    channel=channel_id, thread_ts=thread_ts,
+                    text=f"Error: {e}",
+                )
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Agent reply error ({agent_name}): {e}")
 
