@@ -516,6 +516,24 @@ class CrewmaticBot:
         threading.Thread(target=self.scheduler.report_loop, daemon=True, name="reporter").start()
         logger.info("Report scheduler started")
 
+        # Graceful shutdown handler
+        import signal
+
+        def _shutdown(signum, frame):
+            logger.info("Shutdown signal received. Saving state...")
+            # Save leader context for active project
+            active = self.project_manager.get_active_project()
+            if active:
+                try:
+                    self._auto_save_leader_context(active)
+                except Exception as e:
+                    logger.error(f"Failed to save context on shutdown: {e}")
+            logger.info("Crewmatic stopped.")
+            raise SystemExit(0)
+
+        signal.signal(signal.SIGINT, _shutdown)
+        signal.signal(signal.SIGTERM, _shutdown)
+
         # Start Slack Socket Mode
         handler = SocketModeHandler(self.app, self.app_token)
         handler.start()
