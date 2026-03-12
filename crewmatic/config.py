@@ -116,13 +116,16 @@ def load_config(config_path: str | None = None) -> dict:
     return config
 
 
-def _validate(config: dict):
-    """Validate required fields and agent references."""
+def validate_config(config: dict) -> list[str]:
+    """Validate config and return list of error strings (empty = valid)."""
+    errors = []
+
     if "name" not in config:
-        raise ValueError("crew.yaml must have a 'name' field")
+        errors.append("crew.yaml must have a 'name' field")
 
     if "agents" not in config or not config["agents"]:
-        raise ValueError("crew.yaml must define at least one agent")
+        errors.append("crew.yaml must define at least one agent")
+        return errors  # Can't validate agents if none exist
 
     agents = config["agents"]
     valid_roles = {"leader", "manager", "worker"}
@@ -130,26 +133,35 @@ def _validate(config: dict):
 
     for name, agent in agents.items():
         if "system_prompt" not in agent:
-            raise ValueError(f"Agent '{name}' missing 'system_prompt'")
+            errors.append(f"Agent '{name}' missing 'system_prompt'")
         if "channel" not in agent:
-            raise ValueError(f"Agent '{name}' missing 'channel'")
+            errors.append(f"Agent '{name}' missing 'channel'")
 
         role = agent.get("role", "worker")
         if role not in valid_roles:
-            raise ValueError(f"Agent '{name}' has invalid role '{role}'. Must be: {valid_roles}")
+            errors.append(f"Agent '{name}' has invalid role '{role}'. Must be: {valid_roles}")
         if role == "leader":
             leader_count += 1
 
         # Validate delegation references
         for target in agent.get("delegates_to", []):
             if target not in agents:
-                raise ValueError(f"Agent '{name}' delegates to unknown agent '{target}'")
+                errors.append(f"Agent '{name}' delegates to unknown agent '{target}'")
 
         reports_to = agent.get("reports_to")
         if reports_to and reports_to not in agents:
-            raise ValueError(f"Agent '{name}' reports to unknown agent '{reports_to}'")
+            errors.append(f"Agent '{name}' reports to unknown agent '{reports_to}'")
 
     if leader_count == 0:
         logger.warning("No agent has role 'leader'. Planning and report loops won't run.")
     if leader_count > 1:
         logger.warning(f"Multiple leaders defined ({leader_count}). Only the first will run planning loops.")
+
+    return errors
+
+
+def _validate(config: dict):
+    """Validate required fields and agent references."""
+    errors = validate_config(config)
+    if errors:
+        raise ValueError(errors[0])
