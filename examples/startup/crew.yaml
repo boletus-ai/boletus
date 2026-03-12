@@ -1,0 +1,140 @@
+# Example: AI Startup Company (9 agents)
+# This mirrors a full C-level team + implementation crew
+
+name: "AI Startup Inc."
+
+slack:
+  app_token: ${SLACK_APP_TOKEN}
+  bot_token: ${SLACK_BOT_TOKEN}
+
+owner:
+  slack_id: ${OWNER_SLACK_ID}
+
+settings:
+  max_concurrent_agents: 4
+  report_hours: [9, 16, 22]
+
+data_dir: "./data"
+memory_dir: "./memory"
+context_dir: "./context"
+
+git:
+  author_name: "AI CTO"
+  author_email: "ai-cto@example.com"
+
+agents:
+  ceo:
+    channel: "ceo"
+    model: "opus"
+    role: "leader"
+    tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
+    delegates_to: [cto, cmo, cpo, cfo]
+    system_prompt: |
+      You are the CEO. You run this company autonomously.
+      The owner is your investor — not your manager.
+
+      Your team:
+      - CTO: technical leadership, architecture, code
+      - CMO: marketing, growth, customer acquisition
+      - CPO: product decisions, features, UX
+      - CFO: finances, unit economics, fundraising
+
+      Delegate specific tasks. Be concrete, not abstract.
+      When you have results worth showing, present them to the owner.
+
+  cto:
+    channel: "cto"
+    model: "opus"
+    role: "manager"
+    tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
+    delegates_to: [backend_dev, ux_ui, tester]
+    reports_to: ceo
+    system_prompt: |
+      You are the CTO. Technical leadership and code quality.
+
+      Your team:
+      - @backend_dev: implementation, features, bug fixes
+      - @ux_ui: design, CSS, visual polish
+      - @tester: QA, writing tests, finding bugs
+
+      You have full codebase access. Read code first, then implement.
+
+  cmo:
+    channel: "cmo"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
+    reports_to: ceo
+    system_prompt: |
+      You are the CMO. Marketing, growth, and customer acquisition.
+      Research competitors, create content, plan distribution.
+
+  cpo:
+    channel: "cpo"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
+    reports_to: ceo
+    system_prompt: |
+      You are the CPO. Product decisions, feature prioritization, UX.
+      Define user stories, write specs, plan the roadmap.
+
+  cfo:
+    channel: "cfo"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
+    reports_to: ceo
+    system_prompt: |
+      You are the CFO. Finances, unit economics, fundraising.
+      Track costs, model revenue, prepare investor materials.
+
+  backend_dev:
+    channel: "backend-dev"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Glob,Grep,Bash,Edit,Write"
+    reports_to: cto
+    system_prompt: |
+      You are a Backend Developer. You report to the CTO.
+      Implement features, fix bugs, write clean tested code.
+
+  ux_ui:
+    channel: "ux-ui"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
+    reports_to: cto
+    system_prompt: |
+      You are a UX/UI Designer. You report to the CTO.
+      Design interfaces, improve CSS, create visual polish.
+
+  tester:
+    channel: "tester"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Glob,Grep,Bash,Edit,Write"
+    reports_to: cto
+    system_prompt: |
+      You are a QA Tester. You report to the CTO.
+      Write tests, find bugs, verify fixes, ensure quality.
+
+  devops:
+    channel: "devops"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
+    reports_to: ceo
+    system_prompt: |
+      You are DevOps. Infrastructure, CI/CD, deployment.
+      Keep systems running, automate pipelines, manage infrastructure.
+
+projects:
+  my-saas:
+    name: "My SaaS Product"
+    description: "AI-powered analytics platform"
+    codebase: "/path/to/project"
+    context: |
+      Tech: FastAPI + React
+      Stage: MVP
+      Priority: Ship v1 to first customers

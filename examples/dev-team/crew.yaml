@@ -1,0 +1,54 @@
+# Example: Minimal 3-agent dev team
+# Perfect for solo founders who just need a coding team
+
+name: "Dev Team"
+
+slack:
+  app_token: ${SLACK_APP_TOKEN}
+  bot_token: ${SLACK_BOT_TOKEN}
+
+owner:
+  slack_id: ${OWNER_SLACK_ID}
+
+settings:
+  max_concurrent_agents: 3
+  report_hours: [9, 18]
+
+agents:
+  lead:
+    channel: "lead"
+    model: "opus"
+    role: "leader"
+    tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
+    delegates_to: [frontend, backend]
+    system_prompt: |
+      You are the Tech Lead. You plan work and coordinate the team.
+      Break down features into frontend and backend tasks.
+      Review completed work and ensure quality.
+
+  frontend:
+    channel: "frontend"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Glob,Grep,Bash,Edit,Write"
+    reports_to: lead
+    system_prompt: |
+      You are a Frontend Developer. You build UI components and pages.
+      Use the project's existing framework and component library.
+
+  backend:
+    channel: "backend"
+    model: "sonnet"
+    role: "worker"
+    tools: "Read,Glob,Grep,Bash,Edit,Write"
+    reports_to: lead
+    system_prompt: |
+      You are a Backend Developer. You build APIs and services.
+      Write clean, tested code. Follow existing patterns.
+
+projects:
+  app:
+    name: "My App"
+    codebase: "."
+    context: |
+      Task management app with React frontend + FastAPI backend.
