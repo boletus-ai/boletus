@@ -161,11 +161,13 @@ def cmd_init(args):
         print()
         print("Step 2: Get your tokens")
         print()
-        print("  Socket Mode (Settings > Socket Mode > enable):")
+        print("  App Token: Basic Information > scroll to 'App-Level Tokens'")
+        print("  > Generate Token and Scopes > add 'connections:write' > Generate")
         app_token = _prompt("Paste your App Token (xapp-...)", secret=True)
         env_vars["SLACK_APP_TOKEN"] = app_token
         print()
-        print("  Install App (Settings > Install App > Install to Workspace):")
+        print()
+        print("  Bot Token: Install App (left menu) > Install to Workspace > copy Bot Token")
         bot_token = _prompt("Paste your Bot Token (xoxb-...)", secret=True)
         env_vars["SLACK_BOT_TOKEN"] = bot_token
         print()
