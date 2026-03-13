@@ -1,8 +1,8 @@
-"""Built-in integration catalog — CLI-first, MCP optional.
+"""Built-in integration catalog — credentials collected via Slack, agents use MCP + CLI.
 
-Agents use CLI tools (gh, git, curl) by default. MCP servers are optional
-for users who want structured tool access. Credentials are collected during
-the setup wizard and saved to .env.
+Each integration supports MCP servers for structured tool access AND CLI fallback
+instructions. During setup, the wizard collects credentials in Slack DMs and saves
+them to .env. Agents get both MCP access and CLI instructions in their system prompt.
 """
 
 import logging
@@ -12,38 +12,94 @@ logger = logging.getLogger(__name__)
 
 # Each integration defines:
 # - name: Human-friendly display name
-# - description: What it does (shown in wizard)
-# - env_vars: Required environment variables
-# - setup_message: Slack-formatted instructions shown during credential collection
-# - agent_instructions: Injected into agent system prompt so it knows how to use the tool
+# - description: What it does (shown in wizard checkbox)
+# - env_vars: Required environment variables (collected during setup)
+# - setup_message: Slack-formatted instructions for credential collection
+# - agent_instructions: CLI fallback instructions injected into system prompt
 # - auto_roles: Agent roles that get this integration by default
-# - keywords: Used by the wizard to match user descriptions to integrations
-# - mcp (optional): MCP server config for advanced users
+# - keywords: Used by wizard to auto-suggest from business description
+# - mcp (optional): MCP server config — used when npx is available
 
 CATALOG = {
+    # --- Code & Dev Tools ---
     "github": {
         "name": "GitHub",
-        "description": "Create repos, PRs, issues, review code",
+        "description": "Repos, PRs, issues, code review, Actions",
         "env_vars": ["GITHUB_TOKEN"],
         "setup_message": (
             "*Connect GitHub*\n\n"
             "1. Go to <https://github.com/settings/tokens?type=beta|github.com/settings/tokens>\n"
             "2. Click *Generate new token*\n"
-            "3. Give it a name (e.g. `crewmatic`)\n"
-            "4. Select scopes: `repo`, `workflow`\n"
-            "5. Copy the token and *paste it here*"
+            "3. Give it a name (e.g. `crewmatic`), select scopes: `repo`, `workflow`\n"
+            "4. Copy the token and *paste it here*"
         ),
         "agent_instructions": (
-            "You have GitHub access via the `gh` CLI and git.\n"
-            "- Use `gh repo create`, `gh pr create`, `gh issue create` etc.\n"
-            "- Use `git clone/commit/push` for code work.\n"
-            "- GITHUB_TOKEN is set in your environment.\n"
-            "- Always create feature branches, never push directly to main."
+            "You have GitHub access via `gh` CLI and git.\n"
+            "Use `gh repo create`, `gh pr create`, `gh issue create`, `gh issue list` etc.\n"
+            "Use `git clone/commit/push` for code. GITHUB_TOKEN is set in your environment.\n"
+            "Always use feature branches, never push directly to main."
         ),
         "auto_roles": [],
         "keywords": ["github", "git", "repository", "pull request", "issues", "code review", "repo"],
         "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]},
     },
+    "linear": {
+        "name": "Linear",
+        "description": "Issues, projects, sprints, team tracking",
+        "env_vars": ["LINEAR_API_KEY"],
+        "setup_message": (
+            "*Connect Linear*\n\n"
+            "1. Go to Linear → *Settings* → *API*\n"
+            "2. Create a *Personal API key*\n"
+            "3. *Paste it here*"
+        ),
+        "agent_instructions": (
+            "You have Linear access via the GraphQL API.\n"
+            "Use curl: `curl -X POST https://api.linear.app/graphql "
+            "-H 'Authorization: $LINEAR_API_KEY' -H 'Content-Type: application/json' "
+            "-d '{\"query\": \"{ issues { nodes { title state { name } } } }\"}'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["linear", "issues", "project management", "tickets", "sprints"],
+        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-linear"]},
+    },
+    "sentry": {
+        "name": "Sentry",
+        "description": "Error tracking, performance monitoring",
+        "env_vars": ["SENTRY_AUTH_TOKEN", "SENTRY_ORG"],
+        "setup_message": (
+            "*Connect Sentry*\n\n"
+            "1. Go to <https://sentry.io/settings/account/api/auth-tokens/|Sentry Auth Tokens>\n"
+            "2. Create a token with `project:read`, `event:read` scopes\n"
+            "3. *Paste the token here*\n"
+            "4. I'll ask for your org slug next"
+        ),
+        "agent_instructions": (
+            "You have Sentry access. Use the REST API:\n"
+            "`curl https://sentry.io/api/0/projects/ -H 'Authorization: Bearer $SENTRY_AUTH_TOKEN'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["sentry", "error tracking", "bugs", "monitoring", "crashes"],
+    },
+    "vercel": {
+        "name": "Vercel",
+        "description": "Deploy, manage projects, check deployments",
+        "env_vars": ["VERCEL_TOKEN"],
+        "setup_message": (
+            "*Connect Vercel*\n\n"
+            "1. Go to <https://vercel.com/account/tokens|vercel.com/account/tokens>\n"
+            "2. Create a new token\n"
+            "3. *Paste it here*"
+        ),
+        "agent_instructions": (
+            "You have Vercel access. Use the `vercel` CLI or REST API:\n"
+            "`curl https://api.vercel.com/v9/projects -H 'Authorization: Bearer $VERCEL_TOKEN'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["vercel", "deploy", "hosting", "serverless", "next.js"],
+    },
+
+    # --- Communication ---
     "gmail": {
         "name": "Gmail",
         "description": "Send and read emails, draft outreach",
@@ -57,61 +113,167 @@ CATALOG = {
             "4. I'll ask for your Gmail address next"
         ),
         "agent_instructions": (
-            "You have email access. To send emails, use Python or curl:\n"
-            "```\npython3 -c \"\nimport smtplib\nfrom email.mime.text import MIMEText\nimport os\n"
-            "msg = MIMEText('body')\nmsg['Subject'] = 'subject'\nmsg['From'] = os.environ['GMAIL_ADDRESS']\n"
-            "msg['To'] = 'recipient@example.com'\n"
+            "You have email access via SMTP. Use Python to send:\n"
+            "```python\nimport smtplib, os\nfrom email.mime.text import MIMEText\n"
+            "msg = MIMEText('body')\nmsg['Subject'] = 'subject'\n"
+            "msg['From'] = os.environ['GMAIL_ADDRESS']\nmsg['To'] = 'to@example.com'\n"
             "with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:\n"
             "    s.login(os.environ['GMAIL_ADDRESS'], os.environ['GMAIL_APP_PASSWORD'])\n"
-            "    s.send_message(msg)\n\"\n```\n"
-            "GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set in your environment."
+            "    s.send_message(msg)\n```"
         ),
         "auto_roles": ["leader"],
-        "keywords": ["email", "outreach", "mail", "cold email", "inbox", "send email", "newsletter"],
+        "keywords": ["email", "outreach", "mail", "cold email", "inbox", "newsletter"],
     },
+    "slack-extended": {
+        "name": "Slack (extended)",
+        "description": "Search messages, advanced channel management",
+        "env_vars": ["SLACK_BOT_TOKEN"],
+        "setup_message": (
+            "*Slack extended access*\n\n"
+            "This uses the same bot token — no extra setup needed!\n"
+            "Type `skip` to continue."
+        ),
+        "agent_instructions": "You have extended Slack access via the Slack API.",
+        "auto_roles": [],
+        "keywords": ["slack search", "search messages"],
+        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-slack"]},
+    },
+
+    # --- Google Workspace ---
+    "google-calendar": {
+        "name": "Google Calendar",
+        "description": "Schedule meetings, check availability",
+        "env_vars": ["GOOGLE_OAUTH_CREDENTIALS"],
+        "setup_message": (
+            "*Connect Google Calendar*\n\n"
+            "1. Go to <https://console.cloud.google.com/apis/credentials|Google Cloud Console>\n"
+            "2. Create OAuth 2.0 credentials (Desktop app)\n"
+            "3. Download the JSON file\n"
+            "4. *Paste the JSON content here*"
+        ),
+        "agent_instructions": (
+            "You have Google Calendar access via the API. Use curl or Python google-auth."
+        ),
+        "auto_roles": ["leader"],
+        "keywords": ["calendar", "meeting", "schedule", "booking", "availability"],
+        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-google-calendar"]},
+    },
+    "google-drive": {
+        "name": "Google Drive",
+        "description": "Read, search, manage files and docs",
+        "env_vars": ["GOOGLE_OAUTH_CREDENTIALS"],
+        "setup_message": (
+            "*Connect Google Drive*\n\n"
+            "Uses the same Google OAuth credentials as Calendar.\n"
+            "If you already connected Google Calendar, type `skip`.\n"
+            "Otherwise, follow the same OAuth setup steps."
+        ),
+        "agent_instructions": "You have Google Drive access via the API.",
+        "auto_roles": [],
+        "keywords": ["drive", "google drive", "files", "documents", "sheets", "spreadsheet"],
+        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-google-drive"]},
+    },
+
+    # --- Knowledge & Docs ---
     "notion": {
         "name": "Notion",
-        "description": "Read and write Notion pages and databases",
+        "description": "Pages, databases, wiki, knowledge base",
         "env_vars": ["NOTION_TOKEN"],
         "setup_message": (
             "*Connect Notion*\n\n"
             "1. Go to <https://www.notion.so/my-integrations|notion.so/my-integrations>\n"
-            "2. Click *New integration*\n"
-            "3. Give it a name, select your workspace\n"
-            "4. Copy the *Internal Integration Secret*\n"
-            "5. *Paste it here*\n\n"
+            "2. Click *New integration*, select your workspace\n"
+            "3. Copy the *Internal Integration Secret*\n"
+            "4. *Paste it here*\n\n"
             "Then share the pages you want accessible with this integration."
         ),
         "agent_instructions": (
-            "You have Notion access via the API. Use curl with your NOTION_TOKEN:\n"
-            "- Search: `curl -X POST 'https://api.notion.com/v1/search' -H 'Authorization: Bearer $NOTION_TOKEN' -H 'Notion-Version: 2022-06-28'`\n"
-            "- NOTION_TOKEN is set in your environment."
+            "You have Notion access. Use the API:\n"
+            "`curl -X POST 'https://api.notion.com/v1/search' "
+            "-H 'Authorization: Bearer $NOTION_TOKEN' -H 'Notion-Version: 2022-06-28'`"
         ),
         "auto_roles": [],
         "keywords": ["notion", "wiki", "documentation", "knowledge base", "notes"],
-        "mcp": {"command": "npx", "args": ["-y", "@anthropic/mcp-server-notion"]},
+        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-notion"]},
     },
-    "linear": {
-        "name": "Linear",
-        "description": "Create and manage issues, track projects",
-        "env_vars": ["LINEAR_API_KEY"],
+    "confluence": {
+        "name": "Confluence",
+        "description": "Read and write Confluence pages",
+        "env_vars": ["CONFLUENCE_URL", "CONFLUENCE_TOKEN"],
         "setup_message": (
-            "*Connect Linear*\n\n"
-            "1. Go to Linear → *Settings* → *API*\n"
-            "2. Create a new *Personal API key*\n"
+            "*Connect Confluence*\n\n"
+            "1. Go to <https://id.atlassian.com/manage-profile/security/api-tokens|Atlassian API Tokens>\n"
+            "2. Create a new token\n"
+            "3. *Paste the token here*\n"
+            "4. I'll ask for your Confluence URL next"
+        ),
+        "agent_instructions": (
+            "You have Confluence access. Use the REST API:\n"
+            "`curl $CONFLUENCE_URL/wiki/rest/api/content -H 'Authorization: Bearer $CONFLUENCE_TOKEN'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["confluence", "atlassian", "wiki", "documentation"],
+    },
+
+    # --- CRM & Sales ---
+    "hubspot": {
+        "name": "HubSpot",
+        "description": "Contacts, deals, CRM pipeline",
+        "env_vars": ["HUBSPOT_ACCESS_TOKEN"],
+        "setup_message": (
+            "*Connect HubSpot*\n\n"
+            "1. Go to HubSpot → *Settings* → *Integrations* → *Private Apps*\n"
+            "2. Create a new private app with CRM scopes\n"
+            "3. Copy the access token and *paste it here*"
+        ),
+        "agent_instructions": (
+            "You have HubSpot CRM access. Use the REST API:\n"
+            "`curl https://api.hubapi.com/crm/v3/objects/contacts "
+            "-H 'Authorization: Bearer $HUBSPOT_ACCESS_TOKEN'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["hubspot", "crm", "contacts", "deals", "sales", "pipeline"],
+    },
+
+    # --- Design ---
+    "figma": {
+        "name": "Figma",
+        "description": "Read designs, export assets, inspect components",
+        "env_vars": ["FIGMA_ACCESS_TOKEN"],
+        "setup_message": (
+            "*Connect Figma*\n\n"
+            "1. Go to <https://www.figma.com/developers/api#access-tokens|Figma Access Tokens>\n"
+            "2. Click *Generate new token*\n"
             "3. *Paste it here*"
         ),
         "agent_instructions": (
-            "You have Linear access. Use the GraphQL API via curl:\n"
-            "- `curl -X POST https://api.linear.app/graphql -H 'Authorization: $LINEAR_API_KEY'`\n"
-            "- LINEAR_API_KEY is set in your environment."
+            "You have Figma access. Use the REST API:\n"
+            "`curl 'https://api.figma.com/v1/files/FILE_KEY' "
+            "-H 'X-Figma-Token: $FIGMA_ACCESS_TOKEN'`"
         ),
         "auto_roles": [],
-        "keywords": ["linear", "issues", "project management", "tickets", "sprints"],
+        "keywords": ["figma", "design", "ui design", "mockup", "prototype", "wireframe"],
+        "mcp": {"command": "npx", "args": ["-y", "@anthropic/mcp-server-figma"]},
     },
+    "canva": {
+        "name": "Canva",
+        "description": "Create designs, presentations, social media graphics",
+        "env_vars": ["CANVA_API_KEY"],
+        "setup_message": (
+            "*Connect Canva*\n\n"
+            "1. Go to <https://www.canva.com/developers/|Canva Developers>\n"
+            "2. Create an app and get your API key\n"
+            "3. *Paste it here*"
+        ),
+        "agent_instructions": "You have Canva access via the Canva API.",
+        "auto_roles": [],
+        "keywords": ["canva", "design", "presentation", "graphics", "social media", "logo"],
+    },
+
+    # --- Databases ---
     "postgres": {
         "name": "PostgreSQL",
-        "description": "Query and manage databases",
+        "description": "Query and manage SQL databases",
         "env_vars": ["DATABASE_URL"],
         "setup_message": (
             "*Connect PostgreSQL*\n\n"
@@ -120,31 +282,194 @@ CATALOG = {
         ),
         "agent_instructions": (
             "You have PostgreSQL access. Use `psql` or Python:\n"
-            "- `psql $DATABASE_URL -c 'SELECT ...'`\n"
-            "- DATABASE_URL is set in your environment."
+            "`psql $DATABASE_URL -c 'SELECT ...'`"
         ),
         "auto_roles": [],
         "keywords": ["postgres", "database", "sql", "db", "query", "postgresql"],
-        "mcp": {"command": "npx", "args": ["-y", "@anthropic/mcp-server-postgres"]},
+        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-postgres"]},
     },
-    "hubspot": {
-        "name": "HubSpot",
-        "description": "Manage contacts, deals, CRM",
-        "env_vars": ["HUBSPOT_ACCESS_TOKEN"],
+    "supabase": {
+        "name": "Supabase",
+        "description": "Database, auth, storage, edge functions",
+        "env_vars": ["SUPABASE_URL", "SUPABASE_KEY"],
         "setup_message": (
-            "*Connect HubSpot*\n\n"
-            "1. Go to HubSpot → *Settings* → *Integrations* → *Private Apps*\n"
-            "2. Create a new private app\n"
-            "3. Select scopes: `crm.objects.contacts`, `crm.objects.deals`\n"
-            "4. Copy the access token and *paste it here*"
+            "*Connect Supabase*\n\n"
+            "1. Go to your Supabase project → *Settings* → *API*\n"
+            "2. Copy the *Project URL* and *paste it here*\n"
+            "3. I'll ask for the `anon` key next"
         ),
         "agent_instructions": (
-            "You have HubSpot CRM access. Use the REST API via curl:\n"
-            "- `curl https://api.hubapi.com/crm/v3/objects/contacts -H 'Authorization: Bearer $HUBSPOT_ACCESS_TOKEN'`\n"
-            "- HUBSPOT_ACCESS_TOKEN is set in your environment."
+            "You have Supabase access. Use curl or the supabase CLI:\n"
+            "`curl '$SUPABASE_URL/rest/v1/TABLE' "
+            "-H 'apikey: $SUPABASE_KEY' -H 'Authorization: Bearer $SUPABASE_KEY'`"
         ),
         "auto_roles": [],
-        "keywords": ["hubspot", "crm", "contacts", "deals", "sales", "pipeline"],
+        "keywords": ["supabase", "database", "backend", "auth", "storage"],
+    },
+    "mongodb": {
+        "name": "MongoDB",
+        "description": "Query and manage MongoDB databases",
+        "env_vars": ["MONGODB_URI"],
+        "setup_message": (
+            "*Connect MongoDB*\n\n"
+            "Paste your connection string:\n"
+            "`mongodb+srv://user:password@cluster.mongodb.net/dbname`"
+        ),
+        "agent_instructions": (
+            "You have MongoDB access. Use `mongosh` or Python pymongo:\n"
+            "`mongosh $MONGODB_URI --eval 'db.collection.find()'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["mongodb", "mongo", "nosql", "document database"],
+    },
+
+    # --- Analytics & Monitoring ---
+    "posthog": {
+        "name": "PostHog",
+        "description": "Product analytics, feature flags, experiments",
+        "env_vars": ["POSTHOG_API_KEY", "POSTHOG_PROJECT_ID"],
+        "setup_message": (
+            "*Connect PostHog*\n\n"
+            "1. Go to PostHog → *Settings* → *Personal API Keys*\n"
+            "2. Create a new key\n"
+            "3. *Paste it here*\n"
+            "4. I'll ask for your project ID next"
+        ),
+        "agent_instructions": (
+            "You have PostHog access. Use the API:\n"
+            "`curl https://app.posthog.com/api/projects/$POSTHOG_PROJECT_ID/insights/ "
+            "-H 'Authorization: Bearer $POSTHOG_API_KEY'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["posthog", "analytics", "feature flags", "experiments", "product analytics"],
+    },
+
+    # --- Cloud & Infrastructure ---
+    "cloudflare": {
+        "name": "Cloudflare",
+        "description": "DNS, Workers, R2, D1, KV",
+        "env_vars": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
+        "setup_message": (
+            "*Connect Cloudflare*\n\n"
+            "1. Go to <https://dash.cloudflare.com/profile/api-tokens|Cloudflare API Tokens>\n"
+            "2. Create a token with appropriate permissions\n"
+            "3. *Paste the token here*\n"
+            "4. I'll ask for your account ID next"
+        ),
+        "agent_instructions": (
+            "You have Cloudflare access. Use `wrangler` CLI or the API:\n"
+            "`curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts "
+            "-H 'Authorization: Bearer $CLOUDFLARE_API_TOKEN'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["cloudflare", "dns", "workers", "cdn", "r2", "d1", "edge"],
+    },
+    "aws": {
+        "name": "AWS",
+        "description": "S3, Lambda, EC2, and other AWS services",
+        "env_vars": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION"],
+        "setup_message": (
+            "*Connect AWS*\n\n"
+            "1. Go to <https://console.aws.amazon.com/iam/home#/security_credentials|AWS Security Credentials>\n"
+            "2. Create a new Access Key\n"
+            "3. *Paste the Access Key ID here*\n"
+            "4. I'll ask for the Secret Key and region next"
+        ),
+        "agent_instructions": (
+            "You have AWS access via the `aws` CLI.\n"
+            "Use `aws s3 ls`, `aws lambda list-functions`, etc.\n"
+            "AWS credentials are set in your environment."
+        ),
+        "auto_roles": [],
+        "keywords": ["aws", "amazon", "s3", "lambda", "ec2", "cloud"],
+    },
+
+    # --- Payments ---
+    "stripe": {
+        "name": "Stripe",
+        "description": "Payments, subscriptions, invoices",
+        "env_vars": ["STRIPE_SECRET_KEY"],
+        "setup_message": (
+            "*Connect Stripe*\n\n"
+            "1. Go to <https://dashboard.stripe.com/apikeys|Stripe API Keys>\n"
+            "2. Copy your *Secret key* (starts with `sk_`)\n"
+            "3. *Paste it here*"
+        ),
+        "agent_instructions": (
+            "You have Stripe access. Use the `stripe` CLI or curl:\n"
+            "`curl https://api.stripe.com/v1/customers "
+            "-u $STRIPE_SECRET_KEY:`"
+        ),
+        "auto_roles": [],
+        "keywords": ["stripe", "payments", "billing", "subscriptions", "invoices"],
+    },
+
+    # --- Project Management ---
+    "jira": {
+        "name": "Jira",
+        "description": "Issues, boards, sprints, epics",
+        "env_vars": ["JIRA_URL", "JIRA_TOKEN", "JIRA_EMAIL"],
+        "setup_message": (
+            "*Connect Jira*\n\n"
+            "1. Go to <https://id.atlassian.com/manage-profile/security/api-tokens|Atlassian API Tokens>\n"
+            "2. Create a new token\n"
+            "3. *Paste the token here*\n"
+            "4. I'll ask for your Jira URL and email next"
+        ),
+        "agent_instructions": (
+            "You have Jira access. Use the REST API:\n"
+            "`curl '$JIRA_URL/rest/api/3/search' "
+            "-H 'Authorization: Basic $(echo -n $JIRA_EMAIL:$JIRA_TOKEN | base64)'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["jira", "atlassian", "issues", "boards", "sprints", "epics"],
+    },
+    "airtable": {
+        "name": "Airtable",
+        "description": "Databases, spreadsheets, automations",
+        "env_vars": ["AIRTABLE_TOKEN"],
+        "setup_message": (
+            "*Connect Airtable*\n\n"
+            "1. Go to <https://airtable.com/create/tokens|Airtable Tokens>\n"
+            "2. Create a personal access token\n"
+            "3. *Paste it here*"
+        ),
+        "agent_instructions": (
+            "You have Airtable access. Use the API:\n"
+            "`curl 'https://api.airtable.com/v0/BASE_ID/TABLE' "
+            "-H 'Authorization: Bearer $AIRTABLE_TOKEN'`"
+        ),
+        "auto_roles": [],
+        "keywords": ["airtable", "spreadsheet", "database", "tables"],
+    },
+
+    # --- Content & Presentations ---
+    "gamma": {
+        "name": "Gamma",
+        "description": "Create AI presentations, docs, websites",
+        "env_vars": [],
+        "setup_message": (
+            "*Gamma*\n\n"
+            "No credentials needed — Gamma works through the AI agent directly.\n"
+            "Type `skip` to continue."
+        ),
+        "agent_instructions": "You can create presentations and documents using Gamma.",
+        "auto_roles": [],
+        "keywords": ["gamma", "presentation", "slides", "pitch deck", "deck"],
+    },
+    "miro": {
+        "name": "Miro",
+        "description": "Whiteboards, diagrams, brainstorming",
+        "env_vars": ["MIRO_ACCESS_TOKEN"],
+        "setup_message": (
+            "*Connect Miro*\n\n"
+            "1. Go to <https://miro.com/app/settings/user-profile/apps|Miro Developer Settings>\n"
+            "2. Create a new app, get the access token\n"
+            "3. *Paste it here*"
+        ),
+        "agent_instructions": "You have Miro access via the REST API.",
+        "auto_roles": [],
+        "keywords": ["miro", "whiteboard", "diagram", "brainstorm", "flowchart"],
     },
 }
 

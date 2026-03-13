@@ -23,7 +23,7 @@ git:
   author_email: "ai-cto@example.com"
 
 # Integrations — give agents access to external services
-integrations: [gmail, github, notion]
+integrations: [gmail, github, google-calendar, notion]
 
 agents:
   ceo:
@@ -32,7 +32,7 @@ agents:
     role: "leader"
     tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
     delegates_to: [cto, cmo, cpo, cfo]
-    integrations: [gmail]
+    integrations: [gmail, google-calendar]
     system_prompt: |
       You are the CEO of this company. You operate fully autonomously.
       The owner is your investor/board — they receive reports, not manage you.
