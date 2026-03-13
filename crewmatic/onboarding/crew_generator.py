@@ -36,7 +36,7 @@ def generate_crew_yaml(
     """
     from ..integrations import list_integrations
 
-    available = ", ".join(sorted(list_integrations())) or "none"
+    available = ", ".join(sorted(i["key"] for i in list_integrations())) or "none"
     selected = ", ".join(integrations) if integrations else "none"
 
     prompt = CREW_GENERATION_PROMPT.format(

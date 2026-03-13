@@ -199,7 +199,7 @@ class SetupWizard:
     # Message routing
     # ------------------------------------------------------------------
 
-    def _handle_message(self, user_id: str, text: str, channel_id: str, thread_ts: str, say: Callable, files: list | None = None):
+    def _handle_message(self, user_id: str, text: str, channel_id: str, thread_ts: str, say: Callable, files: list | None = None, message_ts: str = ""):
         """Main router — dispatches to the handler for the current session state."""
         if self.owner_slack_id and user_id != self.owner_slack_id:
             say(
@@ -233,7 +233,7 @@ class SetupWizard:
             )
 
         elif session.state == SetupState.AWAITING_CREDENTIALS:
-            self._handle_credential_input(session, text, channel_id, thread_ts, say)
+            self._handle_credential_input(session, text, channel_id, thread_ts, say, message_ts=message_ts)
 
         elif session.state == SetupState.AWAITING_CONFIRMATION:
             self._handle_confirmation_text(session, text, channel_id, thread_ts, say)
@@ -513,7 +513,7 @@ class SetupWizard:
         )
 
     def _handle_credential_input(
-        self, session: SetupSession, text: str, channel_id: str, thread_ts: str, say: Callable
+        self, session: SetupSession, text: str, channel_id: str, thread_ts: str, say: Callable, message_ts: str = ""
     ):
         """Process a credential pasted by the user."""
         if not session.pending_credentials:
@@ -551,10 +551,12 @@ class SetupWizard:
             session.collected_credentials[env_vars[0]] = token
 
         # Try to delete the message with the token for security
-        try:
-            self.app.client.chat_delete(channel=channel_id, ts=thread_ts)
-        except Exception:
-            pass  # Can't delete user messages without admin scope — that's ok
+        delete_ts = message_ts or thread_ts
+        if delete_ts and delete_ts != thread_ts:
+            try:
+                self.app.client.chat_delete(channel=channel_id, ts=delete_ts)
+            except Exception:
+                pass  # Can't delete user messages without admin scope — that's ok
 
         say(
             text=f"*{current['name']}* connected!",
@@ -899,13 +901,14 @@ class SetupWizard:
 
         @self.app.event("app_mention")
         def handle_mention(event, say):
-            import re
+            import re as _re
             user_id = event.get("user", "")
-            text = re.sub(r"<@[A-Z0-9]+>\s*", "", event.get("text", "")).strip()
+            text = _re.sub(r"<@[A-Z0-9]+>\s*", "", event.get("text", "")).strip()
             channel_id = event.get("channel", "")
-            thread_ts = event.get("thread_ts", event.get("ts", ""))
+            message_ts = event.get("ts", "")
+            thread_ts = event.get("thread_ts", message_ts)
             files = event.get("files", [])
-            self._handle_message(user_id, text, channel_id, thread_ts, say, files=files)
+            self._handle_message(user_id, text, channel_id, thread_ts, say, files=files, message_ts=message_ts)
 
         @self.app.event("message")
         def handle_message(event, say):
@@ -922,9 +925,10 @@ class SetupWizard:
             user_id = event.get("user", "")
             text = event.get("text", "")
             channel_id = event.get("channel", "")
-            thread_ts = event.get("thread_ts", event.get("ts", ""))
+            message_ts = event.get("ts", "")
+            thread_ts = event.get("thread_ts", message_ts)
             files = event.get("files", [])
-            self._handle_message(user_id, text, channel_id, thread_ts, say, files=files)
+            self._handle_message(user_id, text, channel_id, thread_ts, say, files=files, message_ts=message_ts)
 
         @self.app.action("setup_confirm")
         def handle_confirm_action(ack, body):
