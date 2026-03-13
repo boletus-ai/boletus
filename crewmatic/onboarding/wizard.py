@@ -310,6 +310,10 @@ class SetupWizard:
         say: Callable,
     ):
         """AWAITING_DETAILS -> show integration selection step."""
+        # Handle retry after generation failure
+        if text.strip().lower() == "retry" and session.selected_integrations is not None:
+            self._generate_and_show_proposal(session, channel_id, thread_ts, say)
+            return
         session.tech_details = text
         self._show_integrations(session, channel_id, thread_ts, say)
 
@@ -336,11 +340,17 @@ class SetupWizard:
             )
         except Exception as exc:
             logger.error(f"Crew generation failed: {exc}")
+            error_hint = str(exc)
+            if "timeout" in error_hint.lower() or "didn't respond" in error_hint.lower():
+                error_hint = "Claude took too long to respond. This can happen on first run. Please type *retry* to try again."
+            else:
+                error_hint = f"Error: {error_hint}\nPlease type *retry* to try again."
             say(
-                text="Something went wrong generating the config. Please try again.",
+                text=f"Something went wrong generating the config.\n{error_hint}",
                 channel=channel_id,
                 thread_ts=thread_ts,
             )
+            session.state = SetupState.AWAITING_DETAILS
             return
 
         # Inject email_mode into settings

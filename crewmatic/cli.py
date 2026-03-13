@@ -281,7 +281,7 @@ def cmd_setup(args):
 
     # Determine LLM runner
     from .claude_runner import ClaudeRunner
-    llm = ClaudeRunner(max_concurrent=1, timeout=120)
+    llm = ClaudeRunner(max_concurrent=1, timeout=300)
 
     from .onboarding import SetupWizard
     from slack_bolt import App
