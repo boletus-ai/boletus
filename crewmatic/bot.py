@@ -814,13 +814,32 @@ class CrewmaticBot:
                     for opt in action_data.get("selected_options", []):
                         selected.append(opt["value"])
             channel_id = body["channel"]["id"]
+            message_ts = body.get("message", {}).get("ts", "")
             self._save_integrations(sorted(selected), channel_id)
+            # Replace checkboxes with static summary
+            summary = ', '.join(sorted(selected)) if selected else 'none'
+            try:
+                self.app.client.chat_update(
+                    channel=channel_id, ts=message_ts,
+                    text=f"Integrations: {summary}",
+                    blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": f"*Integrations:* {summary}"}}],
+                )
+            except Exception:
+                pass
 
         @self.app.action("manage_integrations_cancel")
         def handle_manage_integrations_cancel(ack, body):
             ack()
             channel_id = body["channel"]["id"]
-            self.app.client.chat_postMessage(channel=channel_id, text="Integration changes cancelled.")
+            message_ts = body.get("message", {}).get("ts", "")
+            try:
+                self.app.client.chat_update(
+                    channel=channel_id, ts=message_ts,
+                    text="Integration changes cancelled.",
+                    blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": "Integration changes cancelled."}}],
+                )
+            except Exception:
+                pass
 
     def _show_integrations_manager(self, channel_name: str):
         """Show Block Kit checkboxes to manage integrations."""

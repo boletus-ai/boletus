@@ -1062,7 +1062,8 @@ class SetupWizard:
             ack()
             user_id = body["user"]["id"]
             channel_id = body["channel"]["id"]
-            thread_ts = body.get("message", {}).get("ts", "")
+            message_ts = body.get("message", {}).get("ts", "")
+            thread_ts = body.get("message", {}).get("thread_ts", message_ts)
 
             session = self.sessions.get(user_id)
             if not session or session.state != SetupState.AWAITING_INTEGRATIONS:
@@ -1079,6 +1080,20 @@ class SetupWizard:
                         selected.append(opt["value"])
 
             session.selected_integrations = selected
+
+            # Replace checkboxes with static summary
+            summary = ', '.join(selected) if selected else 'none'
+            try:
+                self.app.client.chat_update(
+                    channel=channel_id,
+                    ts=message_ts,
+                    text=f"Integrations selected: {summary}",
+                    blocks=[
+                        {"type": "section", "text": {"type": "mrkdwn", "text": f"*Step 3/5 — Integrations selected:* {summary}"}},
+                    ],
+                )
+            except Exception:
+                pass
 
             def _say(**kwargs):
                 self.app.client.chat_postMessage(**kwargs)
@@ -1099,13 +1114,27 @@ class SetupWizard:
             ack()
             user_id = body["user"]["id"]
             channel_id = body["channel"]["id"]
-            thread_ts = body.get("message", {}).get("ts", "")
+            message_ts = body.get("message", {}).get("ts", "")
+            thread_ts = body.get("message", {}).get("thread_ts", message_ts)
 
             session = self.sessions.get(user_id)
             if not session or session.state != SetupState.AWAITING_INTEGRATIONS:
                 return
 
             session.selected_integrations = []
+
+            # Replace checkboxes with static text
+            try:
+                self.app.client.chat_update(
+                    channel=channel_id,
+                    ts=message_ts,
+                    text="Integrations skipped",
+                    blocks=[
+                        {"type": "section", "text": {"type": "mrkdwn", "text": "*Step 3/5 — Integrations:* skipped"}},
+                    ],
+                )
+            except Exception:
+                pass
 
             def _say(**kwargs):
                 self.app.client.chat_postMessage(**kwargs)
