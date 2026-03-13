@@ -321,6 +321,7 @@ class CrewmaticBot:
     def _handle_delegations(self, source_agent: str, response: str):
         agent_names = set(self.agents.keys())
         existing_tasks = self.task_manager.get_tasks()
+        prev_count = len([t for t in existing_tasks if t.get("status") in ("todo", "in_progress")])
         _handle_delegations(
             source_agent=source_agent,
             response=response,
@@ -328,6 +329,45 @@ class CrewmaticBot:
             add_task_fn=self.task_manager.add_task,
             existing_tasks=existing_tasks,
         )
+        # Auto-activate: if leader just created first tasks, ensure system is running
+        new_count = self.task_manager.count_open_tasks()
+        if prev_count == 0 and new_count > 0 and not self.project_manager.is_active():
+            source_agent_obj = self.agents.get(source_agent)
+            if source_agent_obj and source_agent_obj.role == "leader":
+                self._auto_create_project(source_agent, response)
+
+    def _auto_create_project(self, leader_name: str, initial_response: str):
+        """Auto-create and activate a project when CEO starts delegating.
+
+        This enables fully autonomous mode — user just sends a business plan,
+        CEO delegates, and the system auto-activates without needing 'start <project>'.
+        """
+        # Generate a short project key from the response
+        project_key = "main"
+        projects = self.config.get("projects", {})
+
+        if projects:
+            # If projects are defined in crew.yaml, activate the first one
+            project_key = next(iter(projects))
+            self.project_manager.start_project(project_key)
+            logger.info(f"Auto-activated existing project: {project_key}")
+        else:
+            # Create an ad-hoc project
+            self.project_manager.projects["main"] = {
+                "name": "Main",
+                "description": "Auto-created from initial business plan",
+                "context": initial_response[:2000],
+            }
+            self.project_manager.start_project("main")
+            logger.info("Auto-created and activated project: main")
+
+        leader = self.agents.get(leader_name)
+        if leader:
+            self.post_to_channel(
+                leader.channel,
+                "Project activated. Autonomous mode ON — I'll keep planning and delegating.",
+                agent_name=leader_name,
+            )
 
     def _auto_save_leader_context(self, project_key: str):
         """Ask leader to dump working context before switching projects."""

@@ -204,10 +204,6 @@ class Scheduler:
 
         while True:
             try:
-                if not self.project_manager.is_active():
-                    time.sleep(30)
-                    continue
-
                 # Check guardrails before claiming work
                 if self.guardrails:
                     allowed, reason = self.guardrails.can_execute(agent_name)
@@ -342,17 +338,26 @@ class Scheduler:
 
         time.sleep(45)
 
-        # Initial planning
-        logger.info("Leader initial planning kickoff...")
-        try:
-            self.run_planning()
-        except Exception as e:
-            logger.error(f"Initial planning failed: {e}")
+        # Don't do initial planning if no tasks and no project — wait for user
+        # to send a business plan first (CEO will create tasks via delegation)
+        if self.project_manager.is_active() or self.task_manager.count_open_tasks() > 0:
+            logger.info("Leader initial planning kickoff...")
+            try:
+                self.run_planning()
+            except Exception as e:
+                logger.error(f"Initial planning failed: {e}")
+        else:
+            logger.info("No active project and no tasks. Waiting for user input...")
 
         last_archive = 0.0
 
         while True:
-            if not self.project_manager.is_active():
+            # Plan if: there are tasks to manage OR a project is active
+            has_work = (
+                self.project_manager.is_active()
+                or self.task_manager.count_open_tasks() > 0
+            )
+            if not has_work:
                 time.sleep(60)
                 continue
 
