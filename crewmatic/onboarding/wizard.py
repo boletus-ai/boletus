@@ -11,7 +11,10 @@ from typing import Callable
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from ..integrations import list_integrations, match_integrations_from_description
+from ..integrations import (
+    list_integrations, match_integrations_from_description,
+    get_integration, save_credentials_to_env,
+)
 from ..llm import LLMRunner
 from .channel_manager import ChannelManager
 from .crew_generator import generate_crew_yaml, save_crew_yaml
@@ -30,6 +33,7 @@ class SetupState(enum.Enum):
     AWAITING_BUSINESS = "awaiting_business"
     AWAITING_DETAILS = "awaiting_details"
     AWAITING_INTEGRATIONS = "awaiting_integrations"
+    AWAITING_CREDENTIALS = "awaiting_credentials"
     AWAITING_CONFIRMATION = "awaiting_confirmation"
     CREATING = "creating"
     COMPLETE = "complete"
@@ -45,6 +49,8 @@ class SetupSession:
     tech_details: str = ""
     uploaded_docs: list[str] = field(default_factory=list)
     selected_integrations: list[str] = field(default_factory=list)
+    pending_credentials: list[dict] = field(default_factory=list)  # integrations waiting for creds
+    collected_credentials: dict = field(default_factory=dict)  # env_var -> value
     proposed_yaml: str = ""
     proposed_config: dict | None = None
     created_channels: list[str] = field(default_factory=list)
@@ -224,6 +230,9 @@ class SetupWizard:
                 channel=channel_id,
                 thread_ts=thread_ts,
             )
+
+        elif session.state == SetupState.AWAITING_CREDENTIALS:
+            self._handle_credential_input(session, text, channel_id, thread_ts, say)
 
         elif session.state == SetupState.AWAITING_CONFIRMATION:
             self._handle_confirmation_text(session, text, channel_id, thread_ts, say)
@@ -429,6 +438,121 @@ class SetupWizard:
             channel=channel_id,
             thread_ts=thread_ts,
         )
+
+    # ------------------------------------------------------------------
+    # Credential collection (Step 3b)
+    # ------------------------------------------------------------------
+
+    def _start_credential_collection(
+        self, session: SetupSession, channel_id: str, thread_ts: str, say: Callable
+    ):
+        """Walk through each selected integration and collect credentials."""
+        # Build list of integrations that need credentials
+        pending = []
+        for name in session.selected_integrations:
+            integration = get_integration(name)
+            if integration and integration.get("env_vars"):
+                # Check if creds already exist in environment
+                all_set = all(os.environ.get(v) for v in integration["env_vars"])
+                if all_set:
+                    say(
+                        text=f"*{integration['name']}* — already configured, skipping.",
+                        channel=channel_id,
+                        thread_ts=thread_ts,
+                    )
+                else:
+                    pending.append({"key": name, **integration})
+
+        if not pending:
+            # All integrations already have credentials
+            self._generate_and_show_proposal(session, channel_id, thread_ts, say)
+            return
+
+        session.pending_credentials = pending
+        session.state = SetupState.AWAITING_CREDENTIALS
+        self._ask_next_credential(session, channel_id, thread_ts, say)
+
+    def _ask_next_credential(
+        self, session: SetupSession, channel_id: str, thread_ts: str, say: Callable
+    ):
+        """Ask for the next integration's credentials."""
+        if not session.pending_credentials:
+            # All collected — save and continue
+            if session.collected_credentials:
+                save_credentials_to_env(self.config_dir, session.collected_credentials)
+                # Also set in current process so agents can use them immediately
+                for key, val in session.collected_credentials.items():
+                    os.environ[key] = val
+                say(
+                    text=f"Credentials saved. {len(session.collected_credentials)} keys configured.",
+                    channel=channel_id,
+                    thread_ts=thread_ts,
+                )
+            self._generate_and_show_proposal(session, channel_id, thread_ts, say)
+            return
+
+        current = session.pending_credentials[0]
+        setup_msg = current.get("setup_message", f"Please provide credentials for {current['name']}.")
+
+        remaining = len(session.pending_credentials)
+        say(
+            text=f"*Step 3b/{remaining} remaining* — {setup_msg}",
+            channel=channel_id,
+            thread_ts=thread_ts,
+        )
+
+    def _handle_credential_input(
+        self, session: SetupSession, text: str, channel_id: str, thread_ts: str, say: Callable
+    ):
+        """Process a credential pasted by the user."""
+        if not session.pending_credentials:
+            return
+
+        current = session.pending_credentials[0]
+        env_vars = current.get("env_vars", [])
+        token = text.strip()
+
+        # Skip if user says "skip"
+        if token.lower() in ("skip", "later", "next"):
+            say(
+                text=f"Skipping *{current['name']}* — you can set it up later in `.env`.",
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+            session.pending_credentials.pop(0)
+            self._ask_next_credential(session, channel_id, thread_ts, say)
+            return
+
+        # Gmail needs two credentials — address + password
+        if current["key"] == "gmail" and "GMAIL_ADDRESS" not in session.collected_credentials:
+            # First input is the app password
+            session.collected_credentials["GMAIL_APP_PASSWORD"] = token
+            say(
+                text="Got it. Now *paste your Gmail address* (e.g. you@gmail.com):",
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+            return
+        elif current["key"] == "gmail" and "GMAIL_ADDRESS" not in session.collected_credentials:
+            session.collected_credentials["GMAIL_ADDRESS"] = token
+        else:
+            # Single-token integration — assign to first env var
+            session.collected_credentials[env_vars[0]] = token
+
+        # Try to delete the message with the token for security
+        try:
+            self.app.client.chat_delete(channel=channel_id, ts=thread_ts)
+        except Exception:
+            pass  # Can't delete user messages without admin scope — that's ok
+
+        say(
+            text=f"*{current['name']}* connected!",
+            channel=channel_id,
+            thread_ts=thread_ts,
+        )
+
+        session.pending_credentials.pop(0)
+        self._ask_next_credential(session, channel_id, thread_ts, say)
 
     def _handle_confirmation_text(
         self,
@@ -854,8 +978,10 @@ class SetupWizard:
                     channel=channel_id,
                     thread_ts=thread_ts,
                 )
-
-            self._generate_and_show_proposal(session, channel_id, thread_ts, _say)
+                # Start credential collection for selected integrations
+                self._start_credential_collection(session, channel_id, thread_ts, _say)
+            else:
+                self._generate_and_show_proposal(session, channel_id, thread_ts, _say)
 
         @self.app.action("setup_skip_integrations")
         def handle_skip_integrations(ack, body):

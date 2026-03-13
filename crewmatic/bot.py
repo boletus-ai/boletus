@@ -20,7 +20,7 @@ from .llm import CrewmaticError
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
 from .guardrails import CircuitBreaker, CircuitBrokenError, ExecutionGuard
-from .integrations import resolve_integrations_for_agent, build_mcp_config_for_integrations
+from .integrations import resolve_integrations_for_agent, build_mcp_config_for_integrations, get_agent_integration_instructions
 from .project_manager import ProjectManager
 from .scheduler import Scheduler
 from .task_manager import TaskManager
@@ -300,9 +300,19 @@ class CrewmaticBot:
         # MCP server config for this agent
         mcp_config = self._build_mcp_config(agent)
 
+        # Inject integration CLI instructions into system prompt
+        global_integrations = self.config.get("integrations", [])
+        agent_integrations = resolve_integrations_for_agent(
+            agent.role, agent.integrations, global_integrations
+        )
+        integration_instructions = get_agent_integration_instructions(agent_integrations)
+        system_prompt = agent.system_prompt
+        if integration_instructions:
+            system_prompt += "\n" + integration_instructions
+
         try:
             result = self.claude.call(
-                system_prompt=agent.system_prompt,
+                system_prompt=system_prompt,
                 user_message=full_prompt,
                 model=agent.model,
                 allowed_tools=agent.tools,

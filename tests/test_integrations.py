@@ -1,9 +1,13 @@
 """Tests for crewmatic.integrations — integration catalog and helpers."""
 
+import os
+import tempfile
+
 from crewmatic.integrations import (
     get_integration, list_integrations, CATALOG,
     resolve_integrations_for_agent, match_integrations_from_description,
     build_mcp_config_for_integrations, check_integration_credentials,
+    get_agent_integration_instructions, save_credentials_to_env,
 )
 
 
@@ -12,10 +16,11 @@ def test_catalog_not_empty():
 
 
 def test_get_known_integration():
-    gmail = get_integration("gmail")
-    assert gmail is not None
-    assert gmail["name"] == "Gmail"
-    assert "command" in gmail
+    github = get_integration("github")
+    assert github is not None
+    assert github["name"] == "GitHub"
+    assert "env_vars" in github
+    assert "agent_instructions" in github
 
 
 def test_get_unknown_integration():
@@ -35,21 +40,17 @@ def test_list_integrations_count_matches_catalog():
 
 
 def test_resolve_explicit_override():
-    """Agent with explicit integrations ignores auto-assignment."""
     result = resolve_integrations_for_agent("worker", ["github"], ["gmail", "github"])
     assert result == ["github"]
 
 
 def test_resolve_auto_assignment():
-    """Agent without explicit integrations gets role-based defaults."""
     result = resolve_integrations_for_agent("leader", None, ["gmail", "github"])
     assert "gmail" in result
 
 
 def test_resolve_auto_assignment_no_match():
-    """Agent role that doesn't match any auto_roles gets nothing."""
     result = resolve_integrations_for_agent("worker", None, ["gmail", "github"])
-    # gmail auto_roles=["leader"], github auto_roles=[]
     assert result == []
 
 
@@ -59,7 +60,6 @@ def test_resolve_no_integrations():
 
 
 def test_resolve_explicit_empty_list():
-    """Explicitly setting empty list means no integrations."""
     result = resolve_integrations_for_agent("leader", [], ["gmail"])
     assert result == []
 
@@ -85,12 +85,17 @@ def test_match_no_keywords():
     assert isinstance(matches, list)
 
 
-def test_build_mcp_config():
-    config = build_mcp_config_for_integrations(["gmail"])
+def test_build_mcp_config_with_mcp():
+    """Integrations with mcp field get included."""
+    config = build_mcp_config_for_integrations(["github"])
     assert "mcpServers" in config
-    assert "gmail" in config["mcpServers"]
-    assert "command" in config["mcpServers"]["gmail"]
-    assert "args" in config["mcpServers"]["gmail"]
+    assert "github" in config["mcpServers"]
+
+
+def test_build_mcp_config_without_mcp():
+    """Integrations without mcp field are skipped (CLI-only)."""
+    config = build_mcp_config_for_integrations(["gmail"])
+    assert config["mcpServers"] == {}  # gmail has no mcp field
 
 
 def test_build_mcp_config_unknown():
@@ -109,9 +114,39 @@ def test_check_integration_credentials_unknown():
 
 
 def test_check_integration_credentials_structure():
-    results = check_integration_credentials(["gmail"])
+    results = check_integration_credentials(["github"])
     assert len(results) > 0
     name, var, is_set = results[0]
-    assert name == "gmail"
-    assert var == "GMAIL_OAUTH_CREDENTIALS"
+    assert name == "github"
+    assert var == "GITHUB_TOKEN"
     assert isinstance(is_set, bool)
+
+
+def test_agent_integration_instructions():
+    instructions = get_agent_integration_instructions(["github"])
+    assert "GitHub" in instructions
+    assert "gh" in instructions  # mentions gh CLI
+
+
+def test_agent_integration_instructions_empty():
+    assert get_agent_integration_instructions([]) == ""
+
+
+def test_agent_integration_instructions_unknown():
+    assert get_agent_integration_instructions(["nonexistent"]) == ""
+
+
+def test_save_credentials_to_env(tmp_path):
+    env_path = save_credentials_to_env(str(tmp_path), {"GITHUB_TOKEN": "ghp_test123"})
+    assert os.path.exists(env_path)
+    content = open(env_path).read()
+    assert "GITHUB_TOKEN" in content
+    assert "ghp_test123" in content
+
+
+def test_save_credentials_merges(tmp_path):
+    save_credentials_to_env(str(tmp_path), {"KEY1": "val1"})
+    save_credentials_to_env(str(tmp_path), {"KEY2": "val2"})
+    content = open(os.path.join(str(tmp_path), ".env")).read()
+    assert "KEY1" in content
+    assert "KEY2" in content

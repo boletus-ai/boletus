@@ -1,107 +1,148 @@
-"""Built-in integration catalog — maps friendly names to MCP server configs."""
+"""Built-in integration catalog — CLI-first, MCP optional.
+
+Agents use CLI tools (gh, git, curl) by default. MCP servers are optional
+for users who want structured tool access. Credentials are collected during
+the setup wizard and saved to .env.
+"""
 
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 # Each integration defines:
 # - name: Human-friendly display name
 # - description: What it does (shown in wizard)
-# - command: MCP server command
-# - args: MCP server args
-# - env_vars: Required environment variables (user must set these)
-# - setup_hint: Short instruction for getting credentials
+# - env_vars: Required environment variables
+# - setup_message: Slack-formatted instructions shown during credential collection
+# - agent_instructions: Injected into agent system prompt so it knows how to use the tool
 # - auto_roles: Agent roles that get this integration by default
 # - keywords: Used by the wizard to match user descriptions to integrations
+# - mcp (optional): MCP server config for advanced users
 
 CATALOG = {
-    "gmail": {
-        "name": "Gmail",
-        "description": "Send and read emails, draft outreach, manage inbox",
-        "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-gmail"],
-        "env_vars": ["GMAIL_OAUTH_CREDENTIALS"],
-        "setup_hint": "Follow: https://developers.google.com/gmail/api/quickstart/python",
-        "auto_roles": ["leader"],
-        "keywords": ["email", "outreach", "mail", "cold email", "inbox", "send email"],
-    },
-    "google-calendar": {
-        "name": "Google Calendar",
-        "description": "Schedule meetings, check availability, manage events",
-        "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-google-calendar"],
-        "env_vars": ["GOOGLE_CALENDAR_CREDENTIALS"],
-        "setup_hint": "Follow: https://developers.google.com/calendar/api/quickstart/python",
-        "auto_roles": ["leader"],
-        "keywords": ["calendar", "meeting", "schedule", "booking", "availability"],
-    },
     "github": {
         "name": "GitHub",
-        "description": "Create issues, review PRs, manage repositories",
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "description": "Create repos, PRs, issues, review code",
         "env_vars": ["GITHUB_TOKEN"],
-        "setup_hint": "Create a Personal Access Token at https://github.com/settings/tokens",
+        "setup_message": (
+            "*Connect GitHub*\n\n"
+            "1. Go to <https://github.com/settings/tokens?type=beta|github.com/settings/tokens>\n"
+            "2. Click *Generate new token*\n"
+            "3. Give it a name (e.g. `crewmatic`)\n"
+            "4. Select scopes: `repo`, `workflow`\n"
+            "5. Copy the token and *paste it here*"
+        ),
+        "agent_instructions": (
+            "You have GitHub access via the `gh` CLI and git.\n"
+            "- Use `gh repo create`, `gh pr create`, `gh issue create` etc.\n"
+            "- Use `git clone/commit/push` for code work.\n"
+            "- GITHUB_TOKEN is set in your environment.\n"
+            "- Always create feature branches, never push directly to main."
+        ),
         "auto_roles": [],
-        "keywords": ["github", "git", "repository", "pull request", "issues", "code review"],
+        "keywords": ["github", "git", "repository", "pull request", "issues", "code review", "repo"],
+        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]},
+    },
+    "gmail": {
+        "name": "Gmail",
+        "description": "Send and read emails, draft outreach",
+        "env_vars": ["GMAIL_APP_PASSWORD", "GMAIL_ADDRESS"],
+        "setup_message": (
+            "*Connect Gmail*\n\n"
+            "1. Go to <https://myaccount.google.com/apppasswords|Google App Passwords>\n"
+            "   (requires 2FA enabled on your Google account)\n"
+            "2. Create a new app password for `crewmatic`\n"
+            "3. *Paste the 16-character password here*\n"
+            "4. I'll ask for your Gmail address next"
+        ),
+        "agent_instructions": (
+            "You have email access. To send emails, use Python or curl:\n"
+            "```\npython3 -c \"\nimport smtplib\nfrom email.mime.text import MIMEText\nimport os\n"
+            "msg = MIMEText('body')\nmsg['Subject'] = 'subject'\nmsg['From'] = os.environ['GMAIL_ADDRESS']\n"
+            "msg['To'] = 'recipient@example.com'\n"
+            "with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:\n"
+            "    s.login(os.environ['GMAIL_ADDRESS'], os.environ['GMAIL_APP_PASSWORD'])\n"
+            "    s.send_message(msg)\n\"\n```\n"
+            "GMAIL_ADDRESS and GMAIL_APP_PASSWORD are set in your environment."
+        ),
+        "auto_roles": ["leader"],
+        "keywords": ["email", "outreach", "mail", "cold email", "inbox", "send email", "newsletter"],
     },
     "notion": {
         "name": "Notion",
-        "description": "Read and write Notion pages, manage databases",
-        "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-notion"],
+        "description": "Read and write Notion pages and databases",
         "env_vars": ["NOTION_TOKEN"],
-        "setup_hint": "Create an integration at https://www.notion.so/my-integrations",
+        "setup_message": (
+            "*Connect Notion*\n\n"
+            "1. Go to <https://www.notion.so/my-integrations|notion.so/my-integrations>\n"
+            "2. Click *New integration*\n"
+            "3. Give it a name, select your workspace\n"
+            "4. Copy the *Internal Integration Secret*\n"
+            "5. *Paste it here*\n\n"
+            "Then share the pages you want accessible with this integration."
+        ),
+        "agent_instructions": (
+            "You have Notion access via the API. Use curl with your NOTION_TOKEN:\n"
+            "- Search: `curl -X POST 'https://api.notion.com/v1/search' -H 'Authorization: Bearer $NOTION_TOKEN' -H 'Notion-Version: 2022-06-28'`\n"
+            "- NOTION_TOKEN is set in your environment."
+        ),
         "auto_roles": [],
         "keywords": ["notion", "wiki", "documentation", "knowledge base", "notes"],
-    },
-    "slack": {
-        "name": "Slack (extended)",
-        "description": "Search messages, read channels beyond the bot's default access",
-        "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-slack"],
-        "env_vars": ["SLACK_BOT_TOKEN"],
-        "setup_hint": "Uses the same SLACK_BOT_TOKEN — no extra setup needed",
-        "auto_roles": [],
-        "keywords": ["slack", "messages", "search slack", "channels"],
+        "mcp": {"command": "npx", "args": ["-y", "@anthropic/mcp-server-notion"]},
     },
     "linear": {
         "name": "Linear",
-        "description": "Create and manage issues, track project progress",
-        "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-linear"],
+        "description": "Create and manage issues, track projects",
         "env_vars": ["LINEAR_API_KEY"],
-        "setup_hint": "Get API key from Linear settings → API",
+        "setup_message": (
+            "*Connect Linear*\n\n"
+            "1. Go to Linear → *Settings* → *API*\n"
+            "2. Create a new *Personal API key*\n"
+            "3. *Paste it here*"
+        ),
+        "agent_instructions": (
+            "You have Linear access. Use the GraphQL API via curl:\n"
+            "- `curl -X POST https://api.linear.app/graphql -H 'Authorization: $LINEAR_API_KEY'`\n"
+            "- LINEAR_API_KEY is set in your environment."
+        ),
         "auto_roles": [],
         "keywords": ["linear", "issues", "project management", "tickets", "sprints"],
     },
-    "google-drive": {
-        "name": "Google Drive",
-        "description": "Read and search files in Google Drive",
-        "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-google-drive"],
-        "env_vars": ["GOOGLE_DRIVE_CREDENTIALS"],
-        "setup_hint": "Follow: https://developers.google.com/drive/api/quickstart/python",
-        "auto_roles": [],
-        "keywords": ["drive", "google drive", "files", "documents", "sheets", "spreadsheet"],
-    },
     "postgres": {
         "name": "PostgreSQL",
-        "description": "Query and manage PostgreSQL databases",
-        "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-postgres"],
-        "env_vars": ["POSTGRES_URL"],
-        "setup_hint": "Set POSTGRES_URL to your connection string: postgresql://user:pass@host/db",
+        "description": "Query and manage databases",
+        "env_vars": ["DATABASE_URL"],
+        "setup_message": (
+            "*Connect PostgreSQL*\n\n"
+            "Paste your connection string:\n"
+            "`postgresql://user:password@host:5432/dbname`"
+        ),
+        "agent_instructions": (
+            "You have PostgreSQL access. Use `psql` or Python:\n"
+            "- `psql $DATABASE_URL -c 'SELECT ...'`\n"
+            "- DATABASE_URL is set in your environment."
+        ),
         "auto_roles": [],
-        "keywords": ["postgres", "database", "sql", "db", "query"],
+        "keywords": ["postgres", "database", "sql", "db", "query", "postgresql"],
+        "mcp": {"command": "npx", "args": ["-y", "@anthropic/mcp-server-postgres"]},
     },
     "hubspot": {
         "name": "HubSpot",
-        "description": "Manage contacts, deals, and CRM data",
-        "command": "npx",
-        "args": ["-y", "@anthropic/mcp-server-hubspot"],
+        "description": "Manage contacts, deals, CRM",
         "env_vars": ["HUBSPOT_ACCESS_TOKEN"],
-        "setup_hint": "Get access token from HubSpot developer portal",
+        "setup_message": (
+            "*Connect HubSpot*\n\n"
+            "1. Go to HubSpot → *Settings* → *Integrations* → *Private Apps*\n"
+            "2. Create a new private app\n"
+            "3. Select scopes: `crm.objects.contacts`, `crm.objects.deals`\n"
+            "4. Copy the access token and *paste it here*"
+        ),
+        "agent_instructions": (
+            "You have HubSpot CRM access. Use the REST API via curl:\n"
+            "- `curl https://api.hubapi.com/crm/v3/objects/contacts -H 'Authorization: Bearer $HUBSPOT_ACCESS_TOKEN'`\n"
+            "- HUBSPOT_ACCESS_TOKEN is set in your environment."
+        ),
         "auto_roles": [],
         "keywords": ["hubspot", "crm", "contacts", "deals", "sales", "pipeline"],
     },
@@ -122,8 +163,9 @@ def list_integrations() -> list[dict]:
 
 
 def build_mcp_config_for_integrations(integration_names: list[str]) -> dict:
-    """Build a Claude CLI MCP config dict for a list of integration names.
+    """Build a Claude CLI MCP config dict for integrations that have MCP support.
 
+    Only includes integrations that have a "mcp" field in the catalog.
     Returns dict in the format: {"mcpServers": {"name": {"command": ..., "args": ..., "env": ...}}}
     """
     servers = {}
@@ -132,13 +174,13 @@ def build_mcp_config_for_integrations(integration_names: list[str]) -> dict:
         if not integration:
             logger.warning(f"Unknown integration: {name}")
             continue
+        mcp = integration.get("mcp")
+        if not mcp:
+            continue  # CLI-only integration, no MCP server
         server = {
-            "command": integration["command"],
-            "args": integration["args"],
+            "command": mcp["command"],
+            "args": mcp["args"],
         }
-        # Build env dict from env_vars — use os.environ values
-        import os
-
         env = {}
         for var in integration.get("env_vars", []):
             val = os.environ.get(var, "")
@@ -148,6 +190,63 @@ def build_mcp_config_for_integrations(integration_names: list[str]) -> dict:
             server["env"] = env
         servers[name] = server
     return {"mcpServers": servers}
+
+
+def get_agent_integration_instructions(integration_names: list[str]) -> str:
+    """Build system prompt instructions for an agent's integrations.
+
+    Returns a string to append to the agent's system prompt, telling it
+    how to use each integration via CLI tools.
+    """
+    parts = []
+    for name in integration_names:
+        integration = CATALOG.get(name)
+        if not integration:
+            continue
+        instructions = integration.get("agent_instructions", "")
+        if instructions:
+            parts.append(f"### {integration['name']}\n{instructions}")
+    if not parts:
+        return ""
+    return "\n\nINTEGRATIONS AVAILABLE TO YOU:\n" + "\n\n".join(parts)
+
+
+def save_credentials_to_env(config_dir: str, credentials: dict[str, str]) -> str:
+    """Append integration credentials to .env file.
+
+    Args:
+        config_dir: Directory containing crew.yaml
+        credentials: Dict of ENV_VAR_NAME -> value
+
+    Returns:
+        Path to .env file
+    """
+    env_path = os.path.join(config_dir, ".env")
+
+    # Read existing .env to avoid duplicates
+    existing = {}
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, val = line.partition("=")
+                    existing[key.strip()] = val.strip()
+
+    # Merge — new values overwrite old
+    existing.update(credentials)
+
+    # Write back
+    with open(env_path, "w") as f:
+        f.write("# Crewmatic — auto-generated credentials\n")
+        for key, val in sorted(existing.items()):
+            # Don't quote if already quoted
+            if val and not (val.startswith('"') or val.startswith("'")):
+                val = f'"{val}"'
+            f.write(f"{key}={val}\n")
+
+    logger.info(f"Saved {len(credentials)} credentials to {env_path}")
+    return env_path
 
 
 def resolve_integrations_for_agent(
