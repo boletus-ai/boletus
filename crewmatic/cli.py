@@ -297,11 +297,13 @@ def cmd_setup(args):
 
     app = App(token=bot_token)
 
-    def on_complete(config_path):
+    def on_complete(config_path, business_description=""):
         print(f"\nSetup complete! Config saved to {config_path}")
         print("Starting your AI team...")
         from .bot import CrewmaticBot
         bot = CrewmaticBot(config_path=config_path)
+        if business_description:
+            bot.queue_business_plan(business_description)
         bot.start()
 
     wizard = SetupWizard(

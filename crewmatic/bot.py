@@ -868,6 +868,10 @@ class CrewmaticBot:
             logger.info(f"Started worker loop for new agent: {name}")
         self.build_channel_map()
 
+    def queue_business_plan(self, business_description: str):
+        """Queue a business plan to be posted to the CEO channel on startup."""
+        self._pending_business_plan = business_description
+
     def start(self):
         """Start the bot with all loops."""
         logger.info(f"Starting Crewmatic: {self.config.get('name', 'unnamed')}")
@@ -919,6 +923,22 @@ class CrewmaticBot:
 
         signal.signal(signal.SIGINT, _shutdown)
         signal.signal(signal.SIGTERM, _shutdown)
+
+        # Forward business plan from wizard to CEO
+        business_plan = getattr(self, "_pending_business_plan", "")
+        if business_plan:
+            leader = get_leader(self.agents)
+            if leader:
+                def _forward_plan():
+                    time.sleep(3)  # Let Slack connection establish
+                    self.post_to_channel(
+                        leader.channel,
+                        f"*Business plan from setup:*\n\n{business_plan}",
+                        agent_name=leader.name,
+                    )
+                    logger.info("Forwarded business plan to CEO channel")
+                threading.Thread(target=_forward_plan, daemon=True, name="forward-plan").start()
+            self._pending_business_plan = ""
 
         # Start Slack Socket Mode
         handler = SocketModeHandler(self.app, self.app_token)

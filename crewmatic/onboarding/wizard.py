@@ -76,7 +76,7 @@ class SetupWizard:
         llm_runner: Any object satisfying the ``LLMRunner`` protocol.
         owner_slack_id: Slack user ID of the owner. Only this user can run setup.
         on_complete: Optional callback invoked after setup finishes successfully.
-            Receives the path to the new ``crew.yaml`` as its only argument.
+            Receives ``(config_path, business_description)``.
     """
 
     def __init__(
@@ -86,7 +86,7 @@ class SetupWizard:
         config_dir: str,
         llm_runner: LLMRunner,
         owner_slack_id: str = "",
-        on_complete: Callable[[str], None] | None = None,
+        on_complete: Callable[[str, str], None] | None = None,
     ):
         self.app = app
         self.app_token = app_token
@@ -790,7 +790,7 @@ class SetupWizard:
             text=(
                 "Your AI team is ready! "
                 f"Config saved to `{config_path}`.\n\n"
-                "Restart with `crewmatic run` or I'll start it automatically in 5 seconds..."
+                "Starting the bot in 5 seconds — your business plan will be forwarded to the CEO automatically."
             ),
             channel=channel_id,
             thread_ts=thread_ts,
@@ -804,7 +804,7 @@ class SetupWizard:
             def _delayed_complete():
                 time.sleep(5)
                 try:
-                    self.on_complete(config_path)
+                    self.on_complete(config_path, session.business_description)
                 except Exception as exc:
                     logger.error(f"on_complete callback failed: {exc}")
 
@@ -817,11 +817,11 @@ class SetupWizard:
 
         getting_started_message = (
             "Your AI company is live! Here's how to get started:\n\n"
-            "*1. Send your business plan*\n"
-            "Go to #ceo (or your leader's channel) and describe what you want to build. "
-            "Upload docs, pitch decks, or specs — the more context, the better.\n\n"
+            "*1. Business plan forwarded*\n"
+            "Your business description from setup has been automatically sent to the CEO. "
+            "The team is already starting to work on it!\n\n"
             "*2. Watch your team work*\n"
-            "Your CEO will immediately break down the plan and delegate to the team. "
+            "Your CEO will break down the plan and delegate to the team. "
             "Check each agent's channel to see progress.\n\n"
             "*3. Key commands*\n"
             "\u2022 `tasks` \u2014 See the task board\n"
