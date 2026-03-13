@@ -11,6 +11,7 @@ Send a business plan to your CEO agent. It hires a team, delegates tasks, writes
 - Python 3.11+
 - [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
 - A Slack workspace ([create one free](https://slack.com/create))
+- (Optional) Connect services in [claude.ai/settings](https://claude.ai/settings) → Integrations (Gmail, Notion, Figma, etc.) — your AI team will use these automatically
 
 ### 1. Install
 
@@ -129,9 +130,25 @@ Three tiers — zero to full setup:
 
 | Tier | Setup | Examples |
 |------|-------|----------|
-| **Claude.ai MCP** | Zero setup | Figma, Canva, Gamma, Notion, Gmail, Calendar, PostHog, Cloudflare, Miro, Granola |
+| **Claude.ai Connectors** | Connect once in claude.ai | Gmail, Notion, Figma, Canva, Gamma, Calendar, PostHog, Cloudflare, Miro, Granola |
 | **CLI tools** | Token in .env | GitHub (`gh`), AWS (`aws`), Stripe (`stripe`) |
 | **Local MCP** | Auto-configured | PostgreSQL, custom servers |
+
+### How integrations work
+
+Crewmatic agents run via Claude CLI on your machine. When an agent needs to send an email or read a Notion page, it uses Claude's built-in connectors — the same ones you see in [claude.ai](https://claude.ai).
+
+**Claude.ai Connectors** (Gmail, Notion, Figma, etc.) — your agents use whatever services you've connected in your Claude account. No API keys needed. To set up:
+
+1. Go to [claude.ai/settings](https://claude.ai/settings) → **Integrations**
+2. Connect the services you want (Gmail, Notion, Google Calendar, etc.)
+3. That's it — any agent with that integration in `crew.yaml` gets automatic access
+
+Your agents will be able to read emails, create drafts, search Notion, create Canva designs, and more — all through your connected accounts.
+
+**CLI tools** (GitHub, AWS, Stripe) — these need API tokens because agents use the actual CLI tools (`gh`, `aws`, `stripe`). The setup wizard asks for these during `crewmatic setup`.
+
+**Local MCP** (PostgreSQL, custom) — auto-spawned MCP server processes for direct database access.
 
 Agents automatically get the right tools based on their role and integrations configured in `crew.yaml`.
 

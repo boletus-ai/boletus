@@ -456,6 +456,25 @@ class SetupWizard:
         self, session: SetupSession, channel_id: str, thread_ts: str, say: Callable
     ):
         """Walk through each selected integration and collect credentials."""
+        # Identify which integrations use Claude.ai connectors (no credentials needed)
+        claude_ai_integrations = []
+        for name in session.selected_integrations:
+            integration = get_integration(name)
+            if integration and integration.get("claude_ai_tools") and not integration.get("env_vars"):
+                claude_ai_integrations.append(integration["name"])
+
+        if claude_ai_integrations:
+            names = ", ".join(claude_ai_integrations)
+            say(
+                text=(
+                    f"*{names}* — these work through your Claude account.\n"
+                    "Make sure you've connected them at claude.ai → Settings → Integrations.\n"
+                    "No API keys needed — your agents get automatic access."
+                ),
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+
         # Build list of integrations that need credentials
         pending = []
         for name in session.selected_integrations:
