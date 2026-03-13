@@ -25,6 +25,9 @@
         "channels:read",
         "chat:write",
         "chat:write.public",
+        "im:history",
+        "im:read",
+        "im:write",
         "pins:write",
         "users:read"
       ]
@@ -35,7 +38,8 @@
       "bot_events": [
         "app_home_opened",
         "app_mention",
-        "message.channels"
+        "message.channels",
+        "message.im"
       ]
     },
     "interactivity": {
