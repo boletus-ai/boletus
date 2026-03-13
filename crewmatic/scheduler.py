@@ -4,8 +4,9 @@ import logging
 import time
 from datetime import datetime
 
-from .agent_loader import AgentConfig, get_leader, get_delegation_targets
+from .agent_loader import AgentConfig, get_leader, get_delegation_targets, get_effective_channel
 from .context import append_agent_memory
+from .delegation import parse_delegations
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,10 @@ class Scheduler:
         response = self.call_agent(leader.name, prompt)
         self.post(leader.channel, response, agent_name=leader.name)
 
+        # Ping owner with the report
+        if self.owner_mention:
+            self.post(leader.channel, f"{self.owner_mention} Progress report above.", agent_name=leader.name)
+
         # Persist report to leader memory
         memory_dir = self.config.get("memory_dir", "./memory")
         append_agent_memory(
@@ -248,7 +253,8 @@ class Scheduler:
                 agent = self.agents[agent_name]
                 logger.info(f"[{agent_name.upper()}] Executing task #{task_id}: {task_title[:80]}")
 
-                self.post(agent.channel, f"Starting task #{task_id}: {task_title}", agent_name=agent_name)
+                channel = get_effective_channel(agent_name, self.agents)
+                self.post(channel, f"Starting task #{task_id}: {task_title}", agent_name=agent_name)
 
                 # Execute the task
                 exec_template = self._get_template("task_execution", DEFAULT_TASK_EXECUTION_TEMPLATE)
@@ -269,9 +275,9 @@ class Scheduler:
                 if response.strip().upper().startswith("ESCALATION:"):
                     reviewer = agent.reports_to
                     if reviewer and reviewer in self.agents:
-                        reviewer_agent = self.agents[reviewer]
+                        reviewer_channel = get_effective_channel(reviewer, self.agents)
                         self.post(
-                            reviewer_agent.channel,
+                            reviewer_channel,
                             f"ESCALATION from {agent_name.upper()} on task #{task_id}:\n\n{response}",
                             agent_name=agent_name,
                         )
@@ -291,13 +297,24 @@ class Scheduler:
 
                 if verified:
                     self.task_manager.complete_task(task_id, result=response[:500])
+                    channel = get_effective_channel(agent_name, self.agents)
                     self.post(
-                        agent.channel,
+                        channel,
                         f"Completed task #{task_id}: {task_title}\n\n{response}",
                         agent_name=agent_name,
                     )
                     logger.info(f"[{agent_name.upper()}] Completed task #{task_id}")
                     self.handle_delegations(agent_name, response)
+
+                    # Ping owner for high-priority completions
+                    if task.get("priority") == "high" and self.owner_mention:
+                        leader = get_leader(self.agents)
+                        if leader:
+                            self.post(
+                                leader.channel,
+                                f"{self.owner_mention} High-priority task completed: #{task_id} {task_title}",
+                                agent_name=agent_name,
+                            )
 
                     # Auto-persist to memory
                     memory_dir = self.config.get("memory_dir", "./memory")
@@ -307,10 +324,10 @@ class Scheduler:
                         f"Completed task #{task_id}: {task_title}\n\nResult: {summary}",
                     )
                 else:
-                    # Rejected — task stays in_progress, will be re-claimed
-                    # (stuck timeout will reset it to todo)
-                    self.task_manager.reset_task(task_id)
-                    logger.info(f"[{agent_name.upper()}] Task #{task_id} sent back by {reviewer}")
+                    # Rejected — cancel original to avoid duplicates.
+                    # The reviewer's delegation (from _verify_task_result) creates the fix task.
+                    self.task_manager.cancel_task(task_id, reason=f"Rejected by {reviewer}")
+                    logger.info(f"[{agent_name.upper()}] Task #{task_id} rejected by {reviewer}, cancelled")
                 time.sleep(10)
 
             except Exception as e:
@@ -346,19 +363,25 @@ class Scheduler:
             review_upper = review.strip()[:100].upper()
 
             if "REJECTED" in review_upper:
-                # Post rejection feedback to worker's channel
+                # Post rejection feedback to the team channel
+                channel = get_effective_channel(reviewer_name, self.agents)
                 self.post(
-                    reviewer_agent.channel,
+                    channel,
                     f"Review of task #{task_id} ({worker_name.upper()}): REJECTED\n\n{review}",
                     agent_name=reviewer_name,
                 )
                 # Parse any re-delegation from the review
                 self.handle_delegations(reviewer_name, review)
+                # If reviewer didn't re-delegate, reset the original task so worker retries
+                delegations = parse_delegations(review, set(self.agents.keys()))
+                if not delegations:
+                    self.task_manager.reset_task(task_id)
                 return False
 
             # Approved (default if unclear)
+            channel = get_effective_channel(reviewer_name, self.agents)
             self.post(
-                reviewer_agent.channel,
+                channel,
                 f"Review of task #{task_id} ({worker_name.upper()}): Approved",
                 agent_name=reviewer_name,
             )
@@ -413,7 +436,13 @@ class Scheduler:
 
             try:
                 open_tasks = self.task_manager.count_open_tasks()
-                if open_tasks < planning_threshold:
+                stuck_tasks = self.task_manager.get_stuck_tasks()
+
+                if stuck_tasks:
+                    logger.info(f"{len(stuck_tasks)} stuck tasks detected. Triggering replanning...")
+                    self.run_planning()
+                    time.sleep(planning_cooldown)
+                elif open_tasks < planning_threshold:
                     logger.info(f"Task board low ({open_tasks} open). Planning more work...")
                     self.run_planning()
                     time.sleep(planning_cooldown)

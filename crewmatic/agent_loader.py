@@ -83,3 +83,33 @@ def get_agents_by_role(agents: dict[str, AgentConfig], role: str) -> list[AgentC
 def get_delegation_targets(agent: AgentConfig, all_agents: dict[str, AgentConfig]) -> list[AgentConfig]:
     """Get the agents this agent can delegate to."""
     return [all_agents[name] for name in agent.delegates_to if name in all_agents]
+
+
+def get_effective_channel(agent_name: str, agents: dict[str, AgentConfig]) -> str:
+    """Resolve the actual Slack channel an agent should use.
+
+    Workers share their manager's channel. Leaders and managers use their own.
+    Walks the ``reports_to`` chain up to find the nearest manager/leader channel.
+    """
+    agent = agents.get(agent_name)
+    if not agent:
+        return agent_name  # fallback
+
+    # Leaders and managers own their channel
+    if agent.role in ("leader", "manager"):
+        return agent.channel
+
+    # Workers: walk up reports_to to find manager's channel
+    visited: set[str] = set()
+    current = agent
+    while current.reports_to and current.reports_to not in visited:
+        visited.add(current.name)
+        parent = agents.get(current.reports_to)
+        if not parent:
+            break
+        if parent.role in ("leader", "manager"):
+            return parent.channel
+        current = parent
+
+    # Fallback to agent's own channel field
+    return agent.channel

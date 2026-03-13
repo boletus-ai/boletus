@@ -87,17 +87,27 @@ review their output."
    - "If the business needs a new department (e.g. sales, finance, HR), hire a manager: \
 @sales_manager: Own outbound sales and pipeline."
 
+   SHARED CHANNELS — this is critical:
+   - The CEO gets channel: "ceo"
+   - The CTO/technical manager gets channel: "engineering"
+   - The CMO/growth manager gets channel: "growth"
+   - Workers hired later will share their manager's channel automatically.
+   - There are ONLY 3 Slack channels total. Do NOT invent additional channels.
+
    General agent rules:
    - There MUST be exactly one agent with role: leader.
    - Every manager MUST have a reports_to field referencing another agent name.
    - The leader does NOT have reports_to.
-   - Channel names must be lowercase, alphanumeric and hyphens only, max 80 chars.
    - delegates_to lists must reference actual agent names defined in the config.
    - Use model: "opus" for all 3 agents (leader + managers).
    - Each agent needs: channel, model, role, system_prompt, tools.
    - System prompts must be specific to this business — not generic placeholders.
    - Available tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
    - Give all 3 agents: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep,Bash"
+
+   ALL system prompts must include:
+   - "Always start your messages with your name (e.g. CTO:) so the team knows who is speaking."
+   - "When you have important updates, milestones, or reports, ping the owner with <@{{OWNER_SLACK_ID}}>."
 
 6. If the user mentioned a codebase or repository, include a projects: section:
    projects:
@@ -137,11 +147,13 @@ Generate ONLY a single new agent YAML block that can be inserted under the \
 agents: key. The block must:
 - Have a unique name not already in use (use snake_case, e.g. backend_dev, content_writer)
 - Include: channel, model, role, system_prompt, tools, reports_to
-- Channel name: lowercase, alphanumeric + hyphens only, max 80 chars
+- IMPORTANT: Workers share their manager's channel. Set channel to the SAME channel as \
+the hiring manager (e.g. if CTO with channel "engineering" hires, the worker gets channel: "engineering")
 - delegates_to must only reference agents that already exist (or the new agent itself)
 - Use model "opus" for manager, "sonnet" for worker
 - New hires are almost always workers (role: worker) unless the request clearly needs a manager
 - System prompt must be specific to the task/domain — not generic
+- System prompt must include: "Always start your messages with your name so the team knows who is speaking."
 - Technical workers (devs, testers, devops) get tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
 - Non-technical workers (content, design, sales) get tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
 - reports_to should be the manager who is hiring (infer from context)

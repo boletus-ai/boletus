@@ -81,12 +81,15 @@ class ChannelManager:
         crew_config: dict,
         progress_callback: Callable[[str, bool, str], None] | None = None,
     ) -> dict[str, str]:
-        """Create Slack channels for every agent in a crew config.
+        """Create Slack channels for the crew config.
+
+        Multiple agents may share the same channel (e.g. workers share their
+        manager's channel). Channels are deduplicated so each is created only once.
 
         Args:
             crew_config: Parsed crew.yaml dict (must have ``agents`` key).
             progress_callback: Called after each channel with
-                ``(agent_name, success, channel_id_or_error)``.
+                ``(channel_name, success, channel_id_or_error)``.
 
         Returns:
             Mapping of ``{channel_name: channel_id}`` for successfully created channels.
@@ -94,20 +97,26 @@ class ChannelManager:
         agents = crew_config.get("agents", {})
         created: dict[str, str] = {}
 
+        # Collect unique channels and the agents that use them
+        unique_channels: dict[str, list[str]] = {}
         for agent_name, agent_def in agents.items():
             channel_name = agent_def.get("channel", agent_name)
-            purpose = f"Channel for {agent_name.upper()} agent"
+            unique_channels.setdefault(channel_name, []).append(agent_name)
+
+        for channel_name, agent_names in unique_channels.items():
+            team_desc = ", ".join(n.upper() for n in agent_names)
+            purpose = f"Team channel for {team_desc}"
 
             success, channel_id, error = self.create_channel(channel_name, purpose)
 
             if success:
                 created[channel_name] = channel_id
                 if progress_callback:
-                    progress_callback(agent_name, True, channel_id)
+                    progress_callback(channel_name, True, channel_id)
             else:
-                logger.warning(f"Failed to create channel for {agent_name}: {error}")
+                logger.warning(f"Failed to create channel #{channel_name}: {error}")
                 if progress_callback:
-                    progress_callback(agent_name, False, error)
+                    progress_callback(channel_name, False, error)
 
         return created
 

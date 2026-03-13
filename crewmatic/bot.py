@@ -13,7 +13,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk import WebClient
 
-from .agent_loader import AgentConfig, load_agents, get_leader
+from .agent_loader import AgentConfig, load_agents, get_leader, get_effective_channel
 from .claude_runner import ClaudeRunner
 from .config import load_config
 from .cost_tracker import CostTracker
@@ -197,6 +197,9 @@ class CrewmaticBot:
             logger.error(f"Channel #{channel_name} not found")
             return
         max_len = self.settings.get("slack_max_length", 39000)
+        # Prepend agent identity for shared channels
+        if agent_name:
+            text = f"*{agent_name.upper()}*: {text}"
         if len(text) > max_len:
             text = text[:max_len] + "\n\n... (truncated)"
         kwargs = {"channel": channel_id, "text": text}
@@ -211,16 +214,33 @@ class CrewmaticBot:
             logger.error(f"Failed to post to #{channel_name}: {e}")
 
     def resolve_agent(self, channel_name: str | None, text: str) -> tuple[str | None, AgentConfig | None]:
-        """Resolve which agent should handle a message."""
-        if channel_name:
-            for name, agent in self.agents.items():
-                if channel_name == agent.channel:
-                    return name, agent
+        """Resolve which agent should handle a message.
 
+        With shared channels, checks text prefix first (@agent or agent:),
+        then falls back to the channel owner (leader/manager).
+        """
         text_lower = text.lower().strip()
+
+        # Check text prefix first — works in shared channels
         for name, agent in self.agents.items():
-            if text_lower.startswith(f"{name}:") or text_lower.startswith(f"{name} "):
+            if (
+                text_lower.startswith(f"@{name}:")
+                or text_lower.startswith(f"@{name} ")
+                or text_lower.startswith(f"{name}:")
+                or text_lower.startswith(f"{name} ")
+            ):
                 return name, agent
+
+        # Fallback: channel owner (leader or manager assigned to this channel)
+        if channel_name:
+            # Prefer leader/manager who owns the channel
+            for name, agent in self.agents.items():
+                if agent.channel == channel_name and agent.role in ("leader", "manager"):
+                    return name, agent
+            # Last resort: any agent on this channel
+            for name, agent in self.agents.items():
+                if get_effective_channel(name, self.agents) == channel_name:
+                    return name, agent
 
         return None, None
 
@@ -285,7 +305,7 @@ class CrewmaticBot:
             channel_name_to_id=self.channel_name_to_id,
             project_context=project_ctx,
             saved_context=saved_ctx,
-            owner_channel=agent.channel,
+            owner_channel=None,  # Shared channels — don't exclude team messages
             cache_ttl=self.settings.get("cache_ttl", 300),
         )
 
@@ -412,7 +432,7 @@ class CrewmaticBot:
                 f"- report_to: {hiring_manager}\n"
                 f"- role: worker\n"
                 f"- Have a system prompt tailored to this kind of work\n"
-                f"- Channel name: {new_agent_name.replace('_', '-')}\n"
+                f"- Channel name: {manager.channel} (shares manager's channel)\n"
                 f"- delegates_to should be empty (worker)\n"
             )
 
@@ -991,7 +1011,7 @@ class CrewmaticBot:
         self.scheduler.agents = self.agents
         # Keep guardrails in sync
         self.guardrails.set_known_agents(set(self.agents.keys()))
-        if is_new:
+        if is_new and role == "worker":
             threading.Thread(
                 target=self.scheduler.agent_work_loop,
                 args=(name,),
@@ -1025,15 +1045,16 @@ class CrewmaticBot:
         threading.Thread(target=self.scheduler.planning_loop, daemon=True, name="planner").start()
         logger.info("Planning loop started")
 
-        # Start worker loops
-        for agent_name in self.agents:
-            threading.Thread(
-                target=self.scheduler.agent_work_loop,
-                args=(agent_name,),
-                daemon=True,
-                name=f"worker-{agent_name}",
-            ).start()
-            logger.info(f"Worker loop started for {agent_name.upper()}")
+        # Start worker loops (only for workers — leaders/managers plan and review, not execute)
+        for agent_name, agent in self.agents.items():
+            if agent.role == "worker":
+                threading.Thread(
+                    target=self.scheduler.agent_work_loop,
+                    args=(agent_name,),
+                    daemon=True,
+                    name=f"worker-{agent_name}",
+                ).start()
+                logger.info(f"Worker loop started for {agent_name.upper()}")
 
         # Start report scheduler
         threading.Thread(target=self.scheduler.report_loop, daemon=True, name="reporter").start()
@@ -1057,19 +1078,35 @@ class CrewmaticBot:
         signal.signal(signal.SIGINT, _shutdown)
         signal.signal(signal.SIGTERM, _shutdown)
 
-        # Forward business plan from wizard to CEO
+        # Forward business plan from wizard to CEO — directly invoke agent
         business_plan = getattr(self, "_pending_business_plan", "")
         if business_plan:
             leader = get_leader(self.agents)
             if leader:
                 def _forward_plan():
-                    time.sleep(3)  # Let Slack connection establish
+                    time.sleep(5)  # Let Slack connection establish
                     self.post_to_channel(
                         leader.channel,
-                        f"*Business plan from setup:*\n\n{business_plan}",
+                        f"Business plan received from setup. Analyzing and starting work...",
                         agent_name=leader.name,
                     )
-                    logger.info("Forwarded business plan to CEO channel")
+                    try:
+                        response = self.call_agent(
+                            leader.name,
+                            f"A new business plan has been submitted. Analyze it, break it down "
+                            f"into strategic areas, and delegate initial tasks to your team.\n\n"
+                            f"BUSINESS PLAN:\n{business_plan}",
+                        )
+                        self.post_to_channel(leader.channel, response, agent_name=leader.name)
+                        self._handle_delegations(leader.name, response)
+                        logger.info("CEO processed business plan and created initial tasks")
+                    except Exception as e:
+                        logger.error(f"CEO failed to process business plan: {e}")
+                        self.post_to_channel(
+                            leader.channel,
+                            f"Failed to process business plan: {e}",
+                            agent_name=leader.name,
+                        )
                 threading.Thread(target=_forward_plan, daemon=True, name="forward-plan").start()
             self._pending_business_plan = ""
 

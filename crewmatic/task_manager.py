@@ -197,6 +197,23 @@ class TaskManager:
                 lines.append(f"\n({done_count} completed tasks hidden)")
             return "\n".join(lines) if lines else "No open tasks."
 
+    def get_stuck_tasks(self) -> list[dict]:
+        """Return tasks stuck in_progress for longer than 2x stuck_timeout."""
+        with self._lock:
+            tasks = self._load()
+            now = datetime.now()
+            threshold = timedelta(minutes=self.stuck_timeout_minutes * 2)
+            stuck = []
+            for t in tasks:
+                if t["status"] == "in_progress" and t.get("started_at"):
+                    try:
+                        started = datetime.fromisoformat(t["started_at"])
+                        if (now - started) > threshold:
+                            stuck.append(dict(t))
+                    except (ValueError, TypeError):
+                        pass
+            return stuck
+
     def archive_old_tasks(self) -> int:
         with self._lock:
             tasks = self._load()
