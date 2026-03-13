@@ -315,6 +315,15 @@ class CrewmaticBot:
         if integration_instructions:
             system_prompt += "\n" + integration_instructions
 
+        # Email safety guardrail
+        email_mode = self.settings.get("email_mode", "drafts")
+        if "gmail" in agent_integrations and email_mode == "drafts":
+            system_prompt += (
+                "\n\nEMAIL POLICY: You may ONLY create email drafts (gmail_create_draft). "
+                "NEVER send emails directly. The owner reviews and sends all emails manually. "
+                "This is a safety policy — do not bypass it."
+            )
+
         # Append Claude.ai MCP tool patterns to allowed_tools
         allowed_tools = agent.tools
         claude_ai_patterns = get_claude_ai_tools_for_integrations(agent_integrations)

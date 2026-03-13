@@ -35,6 +35,7 @@ class SetupState(enum.Enum):
     AWAITING_DETAILS = "awaiting_details"
     AWAITING_INTEGRATIONS = "awaiting_integrations"
     AWAITING_CREDENTIALS = "awaiting_credentials"
+    AWAITING_EMAIL_PERMISSION = "awaiting_email_permission"
     AWAITING_CONFIRMATION = "awaiting_confirmation"
     CREATING = "creating"
     COMPLETE = "complete"
@@ -54,6 +55,7 @@ class SetupSession:
     collected_credentials: dict = field(default_factory=dict)  # env_var -> value
     proposed_yaml: str = ""
     proposed_config: dict | None = None
+    email_mode: str = "drafts"  # "drafts" or "send"
     created_channels: list[str] = field(default_factory=list)
 
 
@@ -232,6 +234,9 @@ class SetupWizard:
                 thread_ts=thread_ts,
             )
 
+        elif session.state == SetupState.AWAITING_EMAIL_PERMISSION:
+            self._handle_email_permission(session, text, channel_id, thread_ts, say)
+
         elif session.state == SetupState.AWAITING_CREDENTIALS:
             self._handle_credential_input(session, text, channel_id, thread_ts, say, message_ts=message_ts)
 
@@ -337,6 +342,14 @@ class SetupWizard:
                 thread_ts=thread_ts,
             )
             return
+
+        # Inject email_mode into settings
+        if "gmail" in session.selected_integrations and parsed and "_error" not in parsed:
+            settings = parsed.setdefault("settings", {})
+            settings["email_mode"] = session.email_mode
+            # Re-serialize with the injected setting
+            import yaml
+            raw_yaml = yaml.dump(parsed, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
         if "_error" in parsed:
             say(
@@ -475,12 +488,53 @@ class SetupWizard:
                 thread_ts=thread_ts,
             )
 
-        # Build list of integrations that need credentials
+        # Ask about email permissions if Gmail is selected
+        if "gmail" in session.selected_integrations:
+            say(
+                text=(
+                    "*Email permissions:* What should your AI team be allowed to do with email?\n\n"
+                    "• Type `drafts` — agents can only create drafts, you review and send manually (recommended)\n"
+                    "• Type `send` — agents can send emails directly on your behalf\n\n"
+                    "Default is `drafts` (safer). You can change this later in crew.yaml."
+                ),
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+            session.state = SetupState.AWAITING_EMAIL_PERMISSION
+            return
+
+        self._continue_credential_collection(session, channel_id, thread_ts, say)
+
+    def _handle_email_permission(
+        self, session: SetupSession, text: str, channel_id: str, thread_ts: str, say: Callable
+    ):
+        """Handle the email permission choice (drafts vs send)."""
+        choice = text.strip().lower()
+        if choice in ("send", "yes", "allow"):
+            session.email_mode = "send"
+            say(
+                text="Got it — agents *can send emails directly*. Be careful, review agent activity regularly.",
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+        else:
+            session.email_mode = "drafts"
+            say(
+                text="Got it — agents will *only create drafts*. You review and send manually.",
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+        # Continue to credential collection
+        self._continue_credential_collection(session, channel_id, thread_ts, say)
+
+    def _continue_credential_collection(
+        self, session: SetupSession, channel_id: str, thread_ts: str, say: Callable
+    ):
+        """Build pending credentials list and start collection (shared by email permission and direct path)."""
         pending = []
         for name in session.selected_integrations:
             integration = get_integration(name)
             if integration and integration.get("env_vars"):
-                # Check if creds already exist in environment
                 all_set = all(os.environ.get(v) for v in integration["env_vars"])
                 if all_set:
                     say(
@@ -492,7 +546,6 @@ class SetupWizard:
                     pending.append({"key": name, **integration})
 
         if not pending:
-            # All integrations already have credentials
             self._generate_and_show_proposal(session, channel_id, thread_ts, say)
             return
 
