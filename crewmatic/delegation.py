@@ -82,13 +82,52 @@ def parse_delegations(response: str, agent_names: set[str]) -> list[tuple[str, s
     return delegations
 
 
+def parse_unknown_delegations(response: str, known_names: set[str]) -> list[tuple[str, str]]:
+    """Find delegations to agents that don't exist yet.
+
+    Uses a broad @name: pattern and filters out known agents.
+    Returns list of (new_agent_name, task_description) tuples.
+    """
+    # Match @word: or **word**: or *word*: patterns
+    broad_pattern = re.compile(
+        r"(?:@(\w+)\b[:\s]+|\*\*(\w+)\*\*[:\s]+|\*(\w+)\*[:\s]+)",
+        re.IGNORECASE,
+    )
+    known_lower = {n.lower() for n in known_names}
+    matches = list(broad_pattern.finditer(response))
+
+    results = []
+    for i, m in enumerate(matches):
+        raw_name = (m.group(1) or m.group(2) or m.group(3)).lower()
+        if raw_name in known_lower:
+            continue
+        # Skip common false positives
+        if raw_name in ("here", "channel", "everyone", "team", "all", "hire"):
+            continue
+
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(response)
+        lines = []
+        for line in response[start:end].split("\n"):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or stripped.startswith("---"):
+                break
+            lines.append(stripped)
+
+        task_text = " ".join(lines).strip().rstrip("*_")
+        if len(task_text) > 10:
+            results.append((raw_name, task_text))
+
+    return results
+
+
 def handle_delegations(
     source_agent: str,
     response: str,
     agent_names: set[str],
     add_task_fn,
     existing_tasks: list[dict] | None = None,
-):
+) -> list[tuple[str, str]]:
     """Parse delegations and add them to the task board.
 
     Deduplicates against existing open tasks by checking title similarity.
@@ -99,6 +138,10 @@ def handle_delegations(
         agent_names: Set of valid agent names.
         add_task_fn: Callable(title, assigned_to, created_by) to create tasks.
         existing_tasks: Current open tasks for deduplication. If None, no dedup.
+
+    Returns:
+        List of (agent_name, task_desc) for delegations to unknown agents
+        (hire requests). Empty list if all delegations were to known agents.
     """
     # Build set of existing task titles (lowered) for dedup
     existing_titles = set()
@@ -122,3 +165,7 @@ def handle_delegations(
         seen.add(dedup_key)
         logger.info(f"Delegation: {source_agent} -> {target_agent}: {task_desc[:80]}")
         add_task_fn(task_desc, assigned_to=target_agent, created_by=source_agent)
+
+    # Find delegations to agents that don't exist — these are hire requests
+    unknown = parse_unknown_delegations(response, agent_names)
+    return unknown

@@ -7,7 +7,8 @@ from crewmatic.integrations import (
     get_integration, list_integrations, CATALOG,
     resolve_integrations_for_agent, match_integrations_from_description,
     build_mcp_config_for_integrations, check_integration_credentials,
-    get_agent_integration_instructions, save_credentials_to_env,
+    get_agent_integration_instructions, get_claude_ai_tools_for_integrations,
+    save_credentials_to_env,
 )
 
 
@@ -87,15 +88,50 @@ def test_match_no_keywords():
 
 def test_build_mcp_config_with_mcp():
     """Integrations with mcp field get included."""
-    config = build_mcp_config_for_integrations(["github"])
+    config = build_mcp_config_for_integrations(["postgres"])
     assert "mcpServers" in config
-    assert "github" in config["mcpServers"]
+    assert "postgres" in config["mcpServers"]
 
 
 def test_build_mcp_config_without_mcp():
-    """Integrations without mcp field are skipped (CLI-only)."""
-    config = build_mcp_config_for_integrations(["gmail"])
-    assert config["mcpServers"] == {}  # gmail has no mcp field
+    """Integrations without mcp field are skipped (CLI-only or Claude.ai-only)."""
+    config = build_mcp_config_for_integrations(["github"])
+    assert config["mcpServers"] == {}  # github uses CLI, no local MCP
+
+
+def test_claude_ai_tools_for_figma():
+    """Figma should return Claude.ai MCP tool patterns."""
+    patterns = get_claude_ai_tools_for_integrations(["figma"])
+    assert len(patterns) == 1
+    assert "mcp__claude_ai_Figma__*" in patterns
+
+
+def test_claude_ai_tools_for_multiple():
+    """Multiple integrations return combined patterns."""
+    patterns = get_claude_ai_tools_for_integrations(["figma", "canva", "gamma"])
+    assert "mcp__claude_ai_Figma__*" in patterns
+    assert "mcp__claude_ai_Canva__*" in patterns
+    assert "mcp__claude_ai_Gamma__*" in patterns
+
+
+def test_claude_ai_tools_no_duplicates():
+    """Same integration listed twice shouldn't duplicate patterns."""
+    patterns = get_claude_ai_tools_for_integrations(["figma", "figma"])
+    assert len(patterns) == 1
+
+
+def test_claude_ai_tools_cli_only():
+    """CLI-only integrations return no Claude.ai tool patterns."""
+    patterns = get_claude_ai_tools_for_integrations(["github", "aws"])
+    assert patterns == []
+
+
+def test_claude_ai_tools_empty():
+    assert get_claude_ai_tools_for_integrations([]) == []
+
+
+def test_claude_ai_tools_unknown():
+    assert get_claude_ai_tools_for_integrations(["nonexistent"]) == []
 
 
 def test_build_mcp_config_unknown():

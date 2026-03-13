@@ -17,17 +17,32 @@ Active project: {project_name}
 Review your memory, the task board, and team channel updates.
 You run this team autonomously. The owner ({owner_mention}) is your investor — not your manager.
 
-Your team:
+Your current team:
 {team_list}
 
 WHAT TO DO NOW:
 1. Check what your team has COMPLETED since last planning.
 2. Review what's still OPEN on the task board. Don't duplicate.
-3. Decide the next concrete steps to push forward.
-4. Create NEW tasks for your team.
+3. Assess if your team has the right people. If not — HIRE.
+4. Decide the next concrete steps to push forward.
+5. Create NEW tasks for your team.
 
-To delegate tasks, use this EXACT format (one per line):
+DELEGATING TASKS (existing team):
 {delegation_format}
+
+HIRING NEW TEAM MEMBERS:
+If you need a role that doesn't exist yet, just delegate to it:
+@sales_rep: Build a list of 50 target companies and start cold outreach
+@data_analyst: Analyze our conversion funnel and identify drop-off points
+@content_writer: Write 5 blog posts about our product for SEO
+
+The system will automatically create the agent, assign them to your team,
+and give them the task. Only hire when the workload justifies it.
+
+SELF-ASSESSMENT:
+If something isn't working (tasks failing, wrong strategy, blocked), ESCALATE:
+- Report the problem clearly to the owner
+- Adjust your strategy — don't keep doing what isn't working
 
 Be SPECIFIC. Don't repeat tasks already on the board."""
 
@@ -43,8 +58,10 @@ Current time: {timestamp}.
 This is a SUMMARY REPORT. The owner wants to know:
 1. What concrete progress was made
 2. Key metrics (if any)
-3. What's planned next
-4. Any decisions that need owner approval
+3. Team composition — who's on the team and is it optimal?
+4. Cost update: {cost_summary}
+5. What's planned next
+6. Any decisions that need owner approval
 
 Check your memory file and task board for details. Keep it concise — bullet points."""
 
@@ -57,7 +74,12 @@ Assigned by: {created_by}
 
 Do the actual work. If it involves code, write/edit the code.
 If it involves research, do the research and write findings.
-Report exactly what you did and what the result is."""
+Report exactly what you did and what the result is.
+
+IMPORTANT — If you hit a blocker or realize the approach is wrong:
+1. Describe what you tried and why it failed
+2. Suggest an alternative approach
+3. Start your response with ESCALATION: so your manager can act on it"""
 
 
 class Scheduler:
@@ -73,6 +95,7 @@ class Scheduler:
         post_fn,
         handle_delegations_fn,
         guardrails=None,
+        cost_summary_fn=None,
     ):
         self.agents = agents
         self.config = config
@@ -84,6 +107,7 @@ class Scheduler:
         self.post = post_fn
         self.handle_delegations = handle_delegations_fn
         self.guardrails = guardrails
+        self.cost_summary_fn = cost_summary_fn
 
         owner = config.get("owner", {})
         self.owner_mention = owner.get("slack_id", "")
@@ -178,11 +202,13 @@ class Scheduler:
         if not leader:
             return
 
+        cost_summary = self.cost_summary_fn() if self.cost_summary_fn else "Not tracked"
         template = self._get_template("report", DEFAULT_REPORT_TEMPLATE)
         prompt = template.format(
             leader_name=leader.name.upper(),
             owner_mention=self.owner_mention,
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            cost_summary=cost_summary,
         )
 
         logger.info("Running leader report...")
@@ -238,6 +264,20 @@ class Scheduler:
                 if current_task and current_task.get("claim_generation", 0) != task.get("claim_generation", 0):
                     logger.warning(f"[{agent_name.upper()}] Task #{task_id} re-claimed. Discarding stale result.")
                     continue
+
+                # Handle escalations — worker hit a blocker
+                if response.strip().upper().startswith("ESCALATION:"):
+                    reviewer = agent.reports_to
+                    if reviewer and reviewer in self.agents:
+                        reviewer_agent = self.agents[reviewer]
+                        self.post(
+                            reviewer_agent.channel,
+                            f"ESCALATION from {agent_name.upper()} on task #{task_id}:\n\n{response}",
+                            agent_name=agent_name,
+                        )
+                        logger.info(f"[{agent_name.upper()}] Escalated task #{task_id} to {reviewer}")
+                        self.task_manager.reset_task(task_id)
+                        continue
 
                 # Verify result if agent reports to a manager
                 verified = True

@@ -1,8 +1,11 @@
-"""Built-in integration catalog — credentials collected via Slack, agents use MCP + CLI.
+"""Built-in integration catalog — hybrid: Claude.ai MCP + CLI + local MCP.
 
-Each integration supports MCP servers for structured tool access AND CLI fallback
-instructions. During setup, the wizard collects credentials in Slack DMs and saves
-them to .env. Agents get both MCP access and CLI instructions in their system prompt.
+Three integration tiers:
+1. Claude.ai MCP tools (Figma, Canva, Gamma, Notion, etc.) — zero setup, added to --allowedTools
+2. CLI tools (GitHub via gh, AWS via aws CLI, etc.) — instructions in system prompt
+3. Local MCP servers (PostgreSQL, etc.) — spawned as child processes via --mcp-config
+
+During setup, the wizard collects credentials in Slack DMs and saves them to .env.
 """
 
 import logging
@@ -18,7 +21,8 @@ logger = logging.getLogger(__name__)
 # - agent_instructions: CLI fallback instructions injected into system prompt
 # - auto_roles: Agent roles that get this integration by default
 # - keywords: Used by wizard to auto-suggest from business description
-# - mcp (optional): MCP server config — used when npx is available
+# - claude_ai_tools (optional): Wildcard patterns for Claude.ai MCP tools (zero-setup)
+# - mcp (optional): Local MCP server config — spawned as child process via npx
 
 CATALOG = {
     # --- Code & Dev Tools ---
@@ -41,7 +45,6 @@ CATALOG = {
         ),
         "auto_roles": [],
         "keywords": ["github", "git", "repository", "pull request", "issues", "code review", "repo"],
-        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"]},
     },
     "linear": {
         "name": "Linear",
@@ -61,7 +64,6 @@ CATALOG = {
         ),
         "auto_roles": [],
         "keywords": ["linear", "issues", "project management", "tickets", "sprints"],
-        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-linear"]},
     },
     "sentry": {
         "name": "Sentry",
@@ -121,6 +123,7 @@ CATALOG = {
             "    s.login(os.environ['GMAIL_ADDRESS'], os.environ['GMAIL_APP_PASSWORD'])\n"
             "    s.send_message(msg)\n```"
         ),
+        "claude_ai_tools": ["mcp__claude_ai_Gmail__*"],
         "auto_roles": ["leader"],
         "keywords": ["email", "outreach", "mail", "cold email", "inbox", "newsletter"],
     },
@@ -136,7 +139,6 @@ CATALOG = {
         "agent_instructions": "You have extended Slack access via the Slack API.",
         "auto_roles": [],
         "keywords": ["slack search", "search messages"],
-        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-slack"]},
     },
 
     # --- Google Workspace ---
@@ -154,9 +156,9 @@ CATALOG = {
         "agent_instructions": (
             "You have Google Calendar access via the API. Use curl or Python google-auth."
         ),
+        "claude_ai_tools": ["mcp__claude_ai_Google_Calendar__*"],
         "auto_roles": ["leader"],
         "keywords": ["calendar", "meeting", "schedule", "booking", "availability"],
-        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-google-calendar"]},
     },
     "google-drive": {
         "name": "Google Drive",
@@ -171,7 +173,6 @@ CATALOG = {
         "agent_instructions": "You have Google Drive access via the API.",
         "auto_roles": [],
         "keywords": ["drive", "google drive", "files", "documents", "sheets", "spreadsheet"],
-        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-google-drive"]},
     },
 
     # --- Knowledge & Docs ---
@@ -192,9 +193,9 @@ CATALOG = {
             "`curl -X POST 'https://api.notion.com/v1/search' "
             "-H 'Authorization: Bearer $NOTION_TOKEN' -H 'Notion-Version: 2022-06-28'`"
         ),
+        "claude_ai_tools": ["mcp__claude_ai_Notion__*"],
         "auto_roles": [],
         "keywords": ["notion", "wiki", "documentation", "knowledge base", "notes"],
-        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-notion"]},
     },
     "confluence": {
         "name": "Confluence",
@@ -239,33 +240,35 @@ CATALOG = {
     "figma": {
         "name": "Figma",
         "description": "Read designs, export assets, inspect components",
-        "env_vars": ["FIGMA_ACCESS_TOKEN"],
+        "env_vars": [],
         "setup_message": (
-            "*Connect Figma*\n\n"
-            "1. Go to <https://www.figma.com/developers/api#access-tokens|Figma Access Tokens>\n"
-            "2. Click *Generate new token*\n"
-            "3. *Paste it here*"
+            "*Figma*\n\n"
+            "No credentials needed — Figma works through Claude's built-in tools.\n"
+            "Type `skip` to continue."
         ),
         "agent_instructions": (
-            "You have Figma access. Use the REST API:\n"
-            "`curl 'https://api.figma.com/v1/files/FILE_KEY' "
-            "-H 'X-Figma-Token: $FIGMA_ACCESS_TOKEN'`"
+            "You have Figma access via built-in tools.\n"
+            "Use get_design_context, get_screenshot, get_metadata for reading designs.\n"
+            "Use generate_diagram for creating FigJam diagrams."
         ),
+        "claude_ai_tools": ["mcp__claude_ai_Figma__*"],
         "auto_roles": [],
         "keywords": ["figma", "design", "ui design", "mockup", "prototype", "wireframe"],
-        "mcp": {"command": "npx", "args": ["-y", "@anthropic/mcp-server-figma"]},
     },
     "canva": {
         "name": "Canva",
         "description": "Create designs, presentations, social media graphics",
-        "env_vars": ["CANVA_API_KEY"],
+        "env_vars": [],
         "setup_message": (
-            "*Connect Canva*\n\n"
-            "1. Go to <https://www.canva.com/developers/|Canva Developers>\n"
-            "2. Create an app and get your API key\n"
-            "3. *Paste it here*"
+            "*Canva*\n\n"
+            "No credentials needed — Canva works through Claude's built-in tools.\n"
+            "Type `skip` to continue."
         ),
-        "agent_instructions": "You have Canva access via the Canva API.",
+        "agent_instructions": (
+            "You have Canva access via built-in tools.\n"
+            "Use generate-design to create new designs, export-design to export them."
+        ),
+        "claude_ai_tools": ["mcp__claude_ai_Canva__*"],
         "auto_roles": [],
         "keywords": ["canva", "design", "presentation", "graphics", "social media", "logo"],
     },
@@ -340,6 +343,7 @@ CATALOG = {
             "`curl https://app.posthog.com/api/projects/$POSTHOG_PROJECT_ID/insights/ "
             "-H 'Authorization: Bearer $POSTHOG_API_KEY'`"
         ),
+        "claude_ai_tools": ["mcp__claude_ai_PostHog__*"],
         "auto_roles": [],
         "keywords": ["posthog", "analytics", "feature flags", "experiments", "product analytics"],
     },
@@ -361,6 +365,7 @@ CATALOG = {
             "`curl https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts "
             "-H 'Authorization: Bearer $CLOUDFLARE_API_TOKEN'`"
         ),
+        "claude_ai_tools": ["mcp__claude_ai_Cloudflare_Developer_Platform__*"],
         "auto_roles": [],
         "keywords": ["cloudflare", "dns", "workers", "cdn", "r2", "d1", "edge"],
     },
@@ -450,26 +455,47 @@ CATALOG = {
         "env_vars": [],
         "setup_message": (
             "*Gamma*\n\n"
-            "No credentials needed — Gamma works through the AI agent directly.\n"
+            "No credentials needed — Gamma works through Claude's built-in tools.\n"
             "Type `skip` to continue."
         ),
-        "agent_instructions": "You can create presentations and documents using Gamma.",
+        "agent_instructions": (
+            "You can create presentations, documents, and websites using Gamma.\n"
+            "Use the generate tool to create content."
+        ),
+        "claude_ai_tools": ["mcp__claude_ai_Gamma__*"],
         "auto_roles": [],
         "keywords": ["gamma", "presentation", "slides", "pitch deck", "deck"],
     },
     "miro": {
         "name": "Miro",
         "description": "Whiteboards, diagrams, brainstorming",
-        "env_vars": ["MIRO_ACCESS_TOKEN"],
+        "env_vars": [],
         "setup_message": (
-            "*Connect Miro*\n\n"
-            "1. Go to <https://miro.com/app/settings/user-profile/apps|Miro Developer Settings>\n"
-            "2. Create a new app, get the access token\n"
-            "3. *Paste it here*"
+            "*Miro*\n\n"
+            "No credentials needed — Miro works through Claude's built-in tools.\n"
+            "Type `skip` to continue."
         ),
-        "agent_instructions": "You have Miro access via the REST API.",
+        "agent_instructions": (
+            "You have Miro access via built-in tools.\n"
+            "Use diagram_create for creating diagrams, doc_create for documents."
+        ),
+        "claude_ai_tools": ["mcp__claude_ai_Miro__*"],
         "auto_roles": [],
         "keywords": ["miro", "whiteboard", "diagram", "brainstorm", "flowchart"],
+    },
+    "granola": {
+        "name": "Granola",
+        "description": "Meeting transcripts and notes",
+        "env_vars": [],
+        "setup_message": (
+            "*Granola*\n\n"
+            "No credentials needed — Granola works through Claude's built-in tools.\n"
+            "Type `skip` to continue."
+        ),
+        "agent_instructions": "You can access meeting transcripts via Granola.",
+        "claude_ai_tools": ["mcp__claude_ai_Granola__*"],
+        "auto_roles": [],
+        "keywords": ["granola", "meeting", "transcript", "meeting notes"],
     },
 }
 
@@ -515,6 +541,24 @@ def build_mcp_config_for_integrations(integration_names: list[str]) -> dict:
             server["env"] = env
         servers[name] = server
     return {"mcpServers": servers}
+
+
+def get_claude_ai_tools_for_integrations(integration_names: list[str]) -> list[str]:
+    """Return Claude.ai MCP tool wildcard patterns for the given integrations.
+
+    These patterns are appended to --allowedTools so agents can use
+    Claude's built-in MCP tools (Figma, Canva, Gamma, Notion, etc.)
+    without any local MCP server infrastructure.
+    """
+    patterns = []
+    for name in integration_names:
+        integration = CATALOG.get(name)
+        if not integration:
+            continue
+        for pattern in integration.get("claude_ai_tools", []):
+            if pattern not in patterns:
+                patterns.append(pattern)
+    return patterns
 
 
 def get_agent_integration_instructions(integration_names: list[str]) -> str:

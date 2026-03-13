@@ -16,11 +16,12 @@ from slack_sdk import WebClient
 from .agent_loader import AgentConfig, load_agents, get_leader
 from .claude_runner import ClaudeRunner
 from .config import load_config
+from .cost_tracker import CostTracker
 from .llm import CrewmaticError
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
 from .guardrails import CircuitBreaker, CircuitBrokenError, ExecutionGuard
-from .integrations import resolve_integrations_for_agent, build_mcp_config_for_integrations, get_agent_integration_instructions
+from .integrations import resolve_integrations_for_agent, build_mcp_config_for_integrations, get_agent_integration_instructions, get_claude_ai_tools_for_integrations
 from .project_manager import ProjectManager
 from .scheduler import Scheduler
 from .task_manager import TaskManager
@@ -111,6 +112,9 @@ class CrewmaticBot:
         )
         self.guardrails = ExecutionGuard(cb, agent_names=set(self.agents.keys()))
 
+        # Cost tracking
+        self.cost_tracker = CostTracker(data_dir=self.config["data_dir"])
+
         # Workflow engine
         self.workflow_engine = WorkflowEngine(
             config=self.config,
@@ -129,6 +133,7 @@ class CrewmaticBot:
             post_fn=self.post_to_channel,
             handle_delegations_fn=self._handle_delegations,
             guardrails=self.guardrails,
+            cost_summary_fn=self.cost_tracker.get_summary,
         )
 
         # Register Slack event handlers
@@ -310,17 +315,26 @@ class CrewmaticBot:
         if integration_instructions:
             system_prompt += "\n" + integration_instructions
 
+        # Append Claude.ai MCP tool patterns to allowed_tools
+        allowed_tools = agent.tools
+        claude_ai_patterns = get_claude_ai_tools_for_integrations(agent_integrations)
+        if claude_ai_patterns and allowed_tools:
+            allowed_tools = allowed_tools + "," + ",".join(claude_ai_patterns)
+        elif claude_ai_patterns:
+            allowed_tools = ",".join(claude_ai_patterns)
+
         try:
             result = self.claude.call(
                 system_prompt=system_prompt,
                 user_message=full_prompt,
                 model=agent.model,
-                allowed_tools=agent.tools,
+                allowed_tools=allowed_tools,
                 cwd=cwd,
                 env_overrides=env_overrides if env_overrides else None,
                 mcp_config=mcp_config,
             )
             self.guardrails.circuit_breaker.record_success(agent_name)
+            self.cost_tracker.record_call(agent_name, agent.model)
             return result
         except Exception:
             tripped = self.guardrails.circuit_breaker.record_failure(agent_name)
@@ -332,19 +346,90 @@ class CrewmaticBot:
         agent_names = set(self.agents.keys())
         existing_tasks = self.task_manager.get_tasks()
         prev_count = len([t for t in existing_tasks if t.get("status") in ("todo", "in_progress")])
-        _handle_delegations(
+        unknown_delegations = _handle_delegations(
             source_agent=source_agent,
             response=response,
             agent_names=agent_names,
             add_task_fn=self.task_manager.add_task,
             existing_tasks=existing_tasks,
         )
+
+        # Auto-hire: if CEO/CTO delegated to agents that don't exist, create them
+        if unknown_delegations:
+            source_obj = self.agents.get(source_agent)
+            if source_obj and source_obj.role in ("leader", "manager"):
+                for new_name, first_task in unknown_delegations:
+                    threading.Thread(
+                        target=self._auto_hire_agent,
+                        args=(source_agent, new_name, first_task),
+                        daemon=True,
+                    ).start()
+
         # Auto-activate: if leader just created first tasks, ensure system is running
         new_count = self.task_manager.count_open_tasks()
         if prev_count == 0 and new_count > 0 and not self.project_manager.is_active():
             source_agent_obj = self.agents.get(source_agent)
             if source_agent_obj and source_agent_obj.role == "leader":
                 self._auto_create_project(source_agent, response)
+
+    def _auto_hire_agent(self, hiring_manager: str, new_agent_name: str, first_task: str):
+        """Auto-create a new agent when a leader/manager delegates to one that doesn't exist.
+
+        The hiring manager's role determines the new agent's relationship:
+        - Leader hires → new agent reports_to leader, role=worker (or manager if complex)
+        - Manager hires → new agent reports_to manager, role=worker
+        """
+        manager = self.agents.get(hiring_manager)
+        if not manager:
+            return
+
+        # Prevent hiring duplicates
+        if new_agent_name in self.agents:
+            return
+
+        logger.info(f"Auto-hiring: {hiring_manager} wants to create agent '{new_agent_name}' for: {first_task[:80]}")
+
+        self.post(
+            manager.channel,
+            f"Hiring *{new_agent_name.upper()}* for the team...",
+            agent_name=hiring_manager,
+        )
+
+        try:
+            request = (
+                f"The {hiring_manager.upper()} ({manager.role}) needs a new team member called '{new_agent_name}'.\n"
+                f"Their first task will be: {first_task}\n\n"
+                f"The new agent should:\n"
+                f"- report_to: {hiring_manager}\n"
+                f"- role: worker\n"
+                f"- Have a system prompt tailored to this kind of work\n"
+                f"- Channel name: {new_agent_name.replace('_', '-')}\n"
+                f"- delegates_to should be empty (worker)\n"
+            )
+
+            self._handle_add_agent(request, manager.channel)
+
+            # Now add the first task for the newly created agent
+            if new_agent_name in self.agents:
+                self.task_manager.add_task(
+                    first_task,
+                    assigned_to=new_agent_name,
+                    created_by=hiring_manager,
+                )
+                logger.info(f"Auto-hire complete: {new_agent_name} created with first task")
+
+                # Update the hiring manager's delegates_to
+                if new_agent_name not in manager.delegates_to:
+                    manager.delegates_to.append(new_agent_name)
+                    logger.info(f"Added {new_agent_name} to {hiring_manager}'s delegates_to")
+
+        except Exception as e:
+            logger.error(f"Auto-hire failed for {new_agent_name}: {e}")
+            self.post(
+                manager.channel,
+                f"Failed to hire {new_agent_name.upper()}: {e}",
+                agent_name=hiring_manager,
+            )
 
     def _auto_create_project(self, leader_name: str, initial_response: str):
         """Auto-create and activate a project when CEO starts delegating.
@@ -523,6 +608,17 @@ class CrewmaticBot:
                 lines.append(f"  *{run.workflow_name}* — {passed}/{total} steps complete ({run.status})")
             return "Active workflows:\n" + "\n".join(lines)
 
+        if text_lower == "costs" or text_lower == "cost":
+            return f"Cost Tracker\n\n{self.cost_tracker.get_summary()}"
+
+        if text_lower == "team":
+            lines = []
+            for name, agent in self.agents.items():
+                reports = f" → reports to {agent.reports_to.upper()}" if agent.reports_to else ""
+                delegates = f" → manages [{', '.join(d.upper() for d in agent.delegates_to)}]" if agent.delegates_to else ""
+                lines.append(f"  *{name.upper()}* ({agent.role}) #{agent.channel}{reports}{delegates}")
+            return "Current team:\n" + "\n".join(lines)
+
         if text_lower == "help":
             return (
                 "Available commands:\n"
@@ -539,6 +635,8 @@ class CrewmaticBot:
                 "  workflows — List available workflows\n"
                 "  workflow status — Show active workflow runs\n"
                 "  add agent / hire — Add a new agent\n"
+                "  team — Show current team structure\n"
+                "  costs — Show cost tracker\n"
                 "  help — Show this help"
             )
 

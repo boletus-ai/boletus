@@ -1,6 +1,6 @@
 """Tests for delegation parsing."""
 
-from crewmatic.delegation import parse_delegations
+from crewmatic.delegation import parse_delegations, parse_unknown_delegations, handle_delegations
 
 
 AGENT_NAMES = {"cto", "cmo", "dev", "designer"}
@@ -71,3 +71,45 @@ def test_multiline_stops_at_blank():
 def test_empty_agent_names():
     result = parse_delegations("@cto: do something important here", set())
     assert len(result) == 0
+
+
+# --- Auto-hire / unknown delegation tests ---
+
+def test_unknown_delegations_found():
+    response = "@cto: implement auth\n@sales_rep: Build a list of target companies and start outreach"
+    unknown = parse_unknown_delegations(response, AGENT_NAMES)
+    assert len(unknown) == 1
+    assert unknown[0][0] == "sales_rep"
+    assert "target companies" in unknown[0][1]
+
+
+def test_unknown_delegations_ignores_known():
+    response = "@cto: do something really important here"
+    unknown = parse_unknown_delegations(response, AGENT_NAMES)
+    assert unknown == []
+
+
+def test_unknown_delegations_skips_false_positives():
+    response = "@here: look at this thing everyone should see"
+    unknown = parse_unknown_delegations(response, AGENT_NAMES)
+    assert unknown == []
+
+
+def test_unknown_delegations_bold_pattern():
+    response = "**content_writer**: Write 5 blog posts about AI recruiting trends"
+    unknown = parse_unknown_delegations(response, AGENT_NAMES)
+    assert len(unknown) == 1
+    assert unknown[0][0] == "content_writer"
+
+
+def test_handle_delegations_returns_unknown():
+    tasks_added = []
+    def mock_add(title, assigned_to=None, created_by=None):
+        tasks_added.append((title, assigned_to))
+
+    response = "@cto: build the API\n@data_analyst: analyze conversion funnel metrics"
+    unknown = handle_delegations("ceo", response, AGENT_NAMES, mock_add)
+    assert len(tasks_added) == 1  # only known agent
+    assert tasks_added[0][1] == "cto"
+    assert len(unknown) == 1
+    assert unknown[0][0] == "data_analyst"
