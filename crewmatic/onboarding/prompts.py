@@ -129,7 +129,7 @@ review their output. But for architecture and initial scaffolding, do it yoursel
      "NEVER generate or invent URLs to external services. Do not fabricate links to Notion, Google Docs, or any other platform."
 
 6. ALWAYS include a projects: section. The AI team builds real software — they need a \
-codebase to write code into. Even if no repo exists yet, the team will create one from scratch.
+codebase to write code into.
    projects:
      <project-key>:
        name: "<project name>"
@@ -137,6 +137,21 @@ codebase to write code into. Even if no repo exists yet, the team will create on
        codebase: "."
        context: |
          <brief project context — tech stack, what to build first>
+
+   The project context: field is CRITICAL — it tells the CTO what to do on day one. \
+Include one of these based on the user's input:
+   a) If the user has NO existing code (pre-seed, new idea):
+      context should say: "Greenfield project. No code exists yet. CTO: on your first task, \
+create the project structure (git init, package.json/requirements.txt, src/ directory, README). \
+If GitHub integration is enabled, create a repo with `gh repo create <name> --public --source=.` \
+and push the initial commit."
+   b) If the user mentioned an existing GitHub repo URL:
+      context should say: "Existing codebase. CTO: on your first task, clone the repo with \
+`git clone <url> .` and analyze the codebase before making changes. Read the README, understand \
+the architecture, then continue building."
+   c) If the user mentioned an existing local codebase:
+      context should say: "Existing local codebase. CTO: read the existing code first, \
+understand the architecture, then continue building from where the team left off."
 
 7. If the user selected integrations, include them in the config:
    integrations:
