@@ -21,6 +21,7 @@ from .llm import CrewmaticError
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
 from .guardrails import CircuitBreaker, CircuitBrokenError, ExecutionGuard
+from .slack_format import markdown_to_slack
 from .integrations import resolve_integrations_for_agent, build_mcp_config_for_integrations, get_agent_integration_instructions, get_claude_ai_tools_for_integrations
 from .project_manager import ProjectManager
 from .scheduler import Scheduler
@@ -197,6 +198,8 @@ class CrewmaticBot:
             logger.error(f"Channel #{channel_name} not found")
             return
         max_len = self.settings.get("slack_max_length", 39000)
+        # Convert GitHub-flavored markdown to Slack mrkdwn
+        text = markdown_to_slack(text)
         # Prepend agent identity for shared channels
         if agent_name:
             text = f"*{agent_name.upper()}*: {text}"
@@ -343,6 +346,18 @@ class CrewmaticBot:
                 "NEVER send emails directly. The owner reviews and sends all emails manually. "
                 "This is a safety policy — do not bypass it."
             )
+
+        # Output format guardrails
+        system_prompt += (
+            "\n\nOUTPUT RULES:"
+            "\n- You are posting to Slack. Use Slack mrkdwn formatting:"
+            "\n  Bold: *text* (single asterisk). Italic: _text_ (single underscore)."
+            "\n  Do NOT use ## headings, **double asterisks**, or markdown table syntax."
+            "\n- NEVER generate or invent URLs to external services (Notion, Google Docs, "
+            "Confluence, Jira, etc.). If you need to reference a document, describe it "
+            "inline or create an actual file in the workspace. Hallucinated URLs destroy trust."
+            "\n- Keep messages concise. Use bullet points over long paragraphs."
+        )
 
         # Append Claude.ai MCP tool patterns to allowed_tools
         allowed_tools = agent.tools
@@ -762,11 +777,15 @@ class CrewmaticBot:
 
         cmd_response = self.handle_command(text, channel_name)
         if cmd_response:
-            if channel_name:
-                self.post_to_channel(channel_name, cmd_response, thread_ts=thread_ts, agent_name=agent_name)
-            else:
-                client = self.get_agent_client(agent_name)
-                client.chat_postMessage(channel=channel_id, text=cmd_response, thread_ts=thread_ts)
+            logger.debug(f"Command '{text}' handled → posting {len(cmd_response)} chars to #{channel_name}")
+            try:
+                if channel_name:
+                    self.post_to_channel(channel_name, cmd_response, thread_ts=thread_ts, agent_name=agent_name)
+                else:
+                    client = self.get_agent_client(agent_name)
+                    client.chat_postMessage(channel=channel_id, text=cmd_response, thread_ts=thread_ts)
+            except Exception as e:
+                logger.error(f"Failed to post command response for '{text}': {e}")
             return
 
         logger.info(f"{'Mention' if is_mention else 'Message'} -> {agent_name} in #{channel_name}: {text[:80]}")

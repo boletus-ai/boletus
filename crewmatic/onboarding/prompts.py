@@ -107,9 +107,11 @@ review their output."
 
    System prompt structure — each prompt must:
    - START with the agent's specific role description and responsibilities for this business
-   - END with these two rules (append at the very bottom, after all business-specific content):
+   - END with these rules (append at the very bottom, after all business-specific content):
      "Always start your messages with your name (e.g. CTO:) so the team knows who is speaking."
      "When you have important updates, milestones, or reports, ping the owner with <@{{OWNER_SLACK_ID}}>."
+     "Format messages for Slack: use *bold* (single asterisk), _italic_ (single underscore). Do NOT use ## headings, **double asterisks**, or markdown tables."
+     "NEVER generate or invent URLs to external services. Do not fabricate links to Notion, Google Docs, or any other platform."
 
 6. If the user mentioned a codebase or repository, include a projects: section:
    projects:
@@ -155,7 +157,7 @@ the hiring manager (e.g. if CTO with channel "engineering" hires, the worker get
 - Use model "opus" for manager, "sonnet" for worker
 - New hires are almost always workers (role: worker) unless the request clearly needs a manager
 - System prompt must be specific to the task/domain — not generic
-- System prompt must include: "Always start your messages with your name so the team knows who is speaking."
+- System prompt must include: "Always start your messages with your name so the team knows who is speaking. Format for Slack: use *bold*, _italic_. No ## headings, no **double asterisks**, no markdown tables. Never invent URLs."
 - Technical workers (devs, testers, devops) get tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
 - Non-technical workers (content, design, sales) get tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
 - reports_to should be the manager who is hiring (infer from context)
