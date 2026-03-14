@@ -119,6 +119,11 @@ def generate_agent_yaml(
 def save_crew_yaml(config_dir: str, yaml_content: str) -> str:
     """Write crew.yaml to disk.
 
+    This is called during setup (new project). Clears stale runtime data
+    (task board, project state) from previous sessions so the new crew
+    starts fresh. Memory and context dirs are preserved — they may contain
+    uploaded docs from the setup wizard.
+
     Args:
         config_dir: Directory where crew.yaml should live.
         yaml_content: Raw YAML string to write.
@@ -129,7 +134,30 @@ def save_crew_yaml(config_dir: str, yaml_content: str) -> str:
     config_dir_path = Path(config_dir)
     config_dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Also create standard subdirectories
+    # Clear stale runtime data from previous sessions
+    data_dir = config_dir_path / "data"
+    if data_dir.exists():
+        import shutil
+        stale_files = ["tasks.json", "tasks_archive.json", "project_state.json"]
+        for fname in stale_files:
+            fpath = data_dir / fname
+            if fpath.exists():
+                fpath.unlink()
+                logger.info(f"Cleared stale {fname} from previous session")
+        # Also clean MCP config leftovers
+        mcp_dir = data_dir / "mcp_configs"
+        if mcp_dir.exists():
+            shutil.rmtree(mcp_dir, ignore_errors=True)
+
+    # Clear old agent memories (new crew = fresh start)
+    memory_dir = config_dir_path / "memory"
+    if memory_dir.exists():
+        for f in memory_dir.iterdir():
+            if f.suffix == ".md" and f.is_file():
+                f.unlink()
+                logger.info(f"Cleared old agent memory: {f.name}")
+
+    # Create standard subdirectories
     for subdir in ("data", "memory", "context"):
         (config_dir_path / subdir).mkdir(exist_ok=True)
 
