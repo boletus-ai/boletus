@@ -1068,12 +1068,11 @@ class CrewmaticBot:
         threading.Thread(target=self.scheduler.report_loop, daemon=True, name="reporter").start()
         logger.info("Report scheduler started")
 
-        # Graceful shutdown handler
+        # Graceful shutdown handler (only works from main thread)
         import signal
 
         def _shutdown(signum, frame):
             logger.info("Shutdown signal received. Saving state...")
-            # Save leader context for active project
             active = self.project_manager.get_active_project()
             if active:
                 try:
@@ -1083,8 +1082,12 @@ class CrewmaticBot:
             logger.info("Crewmatic stopped.")
             raise SystemExit(0)
 
-        signal.signal(signal.SIGINT, _shutdown)
-        signal.signal(signal.SIGTERM, _shutdown)
+        try:
+            signal.signal(signal.SIGINT, _shutdown)
+            signal.signal(signal.SIGTERM, _shutdown)
+        except ValueError:
+            # Not in main thread (e.g. called from wizard callback) — skip signal handlers
+            logger.info("Not in main thread — skipping signal handlers")
 
         # Forward business plan from wizard to CEO — directly invoke agent
         business_plan = getattr(self, "_pending_business_plan", "")
