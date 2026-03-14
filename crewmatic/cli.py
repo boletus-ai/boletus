@@ -154,6 +154,15 @@ projects:
     codebase: "."
     context: |
       Add project context here — tech stack, current status, priorities.
+
+# Custom MCP servers — add any MCP server your agents should have access to.
+# These are passed to Claude CLI via --mcp-config and available to ALL agents.
+# mcp_servers:
+#   my-custom-server:
+#     command: "npx"
+#     args: ["-y", "@my-org/my-mcp-server"]
+#     env:
+#       API_KEY: "${MY_API_KEY}"
 '''
 
 

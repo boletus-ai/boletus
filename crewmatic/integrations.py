@@ -187,12 +187,19 @@ CATALOG = {
             "Type `skip` to continue."
         ),
         "agent_instructions": (
-            "You have Notion access. Use the API:\n"
-            "`curl -X POST 'https://api.notion.com/v1/search' "
-            "-H 'Authorization: Bearer $NOTION_TOKEN' -H 'Notion-Version: 2022-06-28'`"
+            "You have Notion access via built-in MCP tools.\n"
+            "IMPORTANT — Notion organization rules:\n"
+            "1. FIRST use notion-search to find existing pages in the workspace\n"
+            "2. Look for a top-level page with the company/project name\n"
+            "3. If it doesn't exist, create one with notion-create-pages\n"
+            "4. ALL your content goes UNDER that page as sub-pages\n"
+            "5. Never create standalone private pages — always nest under the project page\n"
+            "6. Use clear titles: 'Architecture Doc', 'Sprint 1 Plan', 'Competitor Research'\n"
+            "Available tools: notion-search, notion-create-pages, notion-update-page, "
+            "notion-fetch, notion-create-database, notion-create-comment"
         ),
         "claude_ai_tools": ["mcp__claude_ai_Notion__*"],
-        "auto_roles": [],
+        "auto_roles": ["manager"],
         "keywords": ["notion", "wiki", "documentation", "knowledge base", "notes"],
     },
     "confluence": {

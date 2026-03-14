@@ -244,24 +244,32 @@ class CrewmaticBot:
         return None, None
 
     def _build_mcp_config(self, agent: AgentConfig) -> str | None:
-        """Generate a temporary MCP config JSON for an agent.
+        """Generate MCP config JSON for an agent.
 
-        Returns path to the config file, or None if the agent has no integrations.
+        Merges three sources:
+        1. Built-in integrations (postgres MCP from catalog)
+        2. Custom MCP servers from crew.yaml mcp_servers: section
+        3. Per-agent MCP servers from agent config
+
+        Returns path to the config file, or None if no MCP servers.
         """
         global_integrations = self.config.get("integrations", [])
         agent_integrations = resolve_integrations_for_agent(
             agent.role, agent.integrations, global_integrations
         )
 
-        if not agent_integrations:
-            return None
+        mcp_config = build_mcp_config_for_integrations(agent_integrations) if agent_integrations else {"mcpServers": {}}
 
-        mcp_config = build_mcp_config_for_integrations(agent_integrations)
+        # Merge custom MCP servers from crew.yaml (global)
+        custom_servers = self.config.get("mcp_servers", {})
+        for name, server in custom_servers.items():
+            if name not in mcp_config["mcpServers"]:
+                mcp_config["mcpServers"][name] = server
 
         if not mcp_config.get("mcpServers"):
             return None
 
-        # Write to a persistent config file (cleaned up on process exit)
+        # Write config file
         config_dir = os.path.join(self.config["data_dir"], "mcp_configs")
         os.makedirs(config_dir, exist_ok=True)
         config_path = os.path.join(config_dir, f"{agent.name}.json")
@@ -349,11 +357,22 @@ class CrewmaticBot:
             "\n- You are posting to Slack. Use Slack mrkdwn formatting:"
             "\n  Bold: *text* (single asterisk). Italic: _text_ (single underscore)."
             "\n  Do NOT use ## headings, **double asterisks**, or markdown table syntax."
-            "\n- NEVER generate or invent URLs to external services (Notion, Google Docs, "
-            "Confluence, Jira, etc.). If you need to reference a document, describe it "
-            "inline or create an actual file in the workspace. Hallucinated URLs destroy trust."
+            "\n- NEVER generate or invent URLs to external services. If you used a tool to "
+            "create something (Notion page, Canva design, etc.), share the REAL URL from "
+            "the tool response. Never make up URLs."
             "\n- Keep messages concise. Use bullet points over long paragraphs."
         )
+
+        # If agent has Notion, inject project name for organized page hierarchy
+        if "notion" in agent_integrations:
+            project_name = self.config.get("name", "")
+            if project_name:
+                system_prompt += (
+                    f"\n\nNOTION WORKSPACE: All Notion content must go under a top-level "
+                    f"page called '{project_name}'. Search for it first (notion-search). "
+                    f"If it doesn't exist, create it. Every doc, plan, report = sub-page "
+                    f"under '{project_name}'. Never create orphaned pages."
+                )
 
         # Append Claude.ai MCP tool patterns to allowed_tools
         allowed_tools = agent.tools
