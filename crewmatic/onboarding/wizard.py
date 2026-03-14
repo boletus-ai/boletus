@@ -968,23 +968,30 @@ class SetupWizard:
         # 3b. Send getting-started guide as a DM to the owner
         self._send_getting_started_dm()
 
-        # 4. Store completion data and stop the wizard's event loop.
-        # This unblocks start() on the main thread, which then calls on_complete.
+        # 4. Stop wizard handler and start the bot.
         # Two SocketModeHandlers on the same app token cause event delivery conflicts,
         # so the wizard must stop before the bot starts.
-        self._complete_config_path = config_path
-        self._complete_business_desc = session.business_description
-
-        if hasattr(self, "_handler"):
-            # Close from a thread to avoid deadlock — close() unblocks start()
-            def _shutdown_wizard():
+        # We run this in a non-daemon thread so the bot stays alive even if
+        # handler.start() on the main thread doesn't return cleanly.
+        if self.on_complete:
+            def _handoff():
                 time.sleep(2)
+                # Close wizard's socket connection
+                if hasattr(self, "_handler"):
+                    try:
+                        self._handler.close()
+                        logger.info("Wizard SocketModeHandler closed")
+                    except Exception as exc:
+                        logger.warning(f"Failed to close wizard handler: {exc}")
+                time.sleep(3)  # Let socket close cleanly
+                # Start the bot (blocking call — keeps this thread alive)
+                logger.info("Starting bot from handoff thread")
                 try:
-                    self._handler.close()
-                    logger.info("Wizard SocketModeHandler closed — handing off to bot")
+                    self.on_complete(config_path, session.business_description)
                 except Exception as exc:
-                    logger.warning(f"Failed to close wizard handler: {exc}")
-            threading.Thread(target=_shutdown_wizard, daemon=True).start()
+                    logger.error(f"Bot startup failed: {exc}")
+            # Non-daemon thread — survives even if main thread exits
+            threading.Thread(target=_handoff, name="bot-handoff").start()
 
     def _send_getting_started_dm(self):
         """Send a getting-started guide as a DM to the owner after setup completes."""
@@ -1277,12 +1284,4 @@ class SetupWizard:
 
         logger.info("Setup wizard started — waiting for owner input")
         self._handler = SocketModeHandler(self.app, self.app_token)
-        self._complete_config_path = None
-        self._complete_business_desc = ""
-        self._handler.start()  # Blocks until handler.close() is called
-
-        # After wizard closes, hand off to bot on the main thread
-        if self.on_complete and self._complete_config_path:
-            logger.info("Wizard done — starting bot on main thread")
-            time.sleep(2)  # Let the socket close cleanly
-            self.on_complete(self._complete_config_path, self._complete_business_desc)
+        self._handler.start()  # Blocks — bot handoff runs on a separate thread
