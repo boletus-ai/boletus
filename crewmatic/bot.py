@@ -611,10 +611,15 @@ class CrewmaticBot:
         if text_lower == "my tasks":
             for name, agent in self.agents.items():
                 if channel_name == agent.channel:
-                    tasks = self.task_manager.get_tasks(assigned_to=name, status="todo")
-                    if not tasks:
+                    todo = self.task_manager.get_tasks(assigned_to=name, status="todo")
+                    in_progress = self.task_manager.get_tasks(assigned_to=name, status="in_progress")
+                    all_tasks = in_progress + todo
+                    if not all_tasks:
                         return f"No open tasks for {name.upper()}."
-                    lines = [f"#{t['id']} [{t['priority'].upper()}] {t['title']}" for t in tasks]
+                    lines = []
+                    for t in all_tasks:
+                        status = "WORKING" if t["status"] == "in_progress" else t["priority"].upper()
+                        lines.append(f"#{t['id']} [{status}] {t['title']}")
                     return f"Tasks for {name.upper()}:\n" + "\n".join(lines)
             return "This channel has no assigned agent."
 
