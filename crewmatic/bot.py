@@ -23,6 +23,7 @@ from .delegation import handle_delegations as _handle_delegations
 from .guardrails import CircuitBreaker, CircuitBrokenError, ExecutionGuard
 from .slack_format import markdown_to_slack
 from .integrations import resolve_integrations_for_agent, build_mcp_config_for_integrations, get_agent_integration_instructions, get_claude_ai_tools_for_integrations
+from .link_tracker import LinkTracker
 from .project_manager import ProjectManager
 from .scheduler import Scheduler
 from .task_manager import TaskManager
@@ -113,6 +114,9 @@ class CrewmaticBot:
 
         # Cost tracking
         self.cost_tracker = CostTracker(data_dir=self.config["data_dir"])
+
+        # Link tracking
+        self.link_tracker = LinkTracker(data_dir=self.config["data_dir"])
 
         # Workflow engine
         self.workflow_engine = WorkflowEngine(
@@ -417,6 +421,7 @@ class CrewmaticBot:
             )
             self.guardrails.circuit_breaker.record_success(agent_name)
             self.cost_tracker.record_call(agent_name, agent.model)
+            self.link_tracker.extract_and_save(agent_name, result)
             return result
         except Exception:
             tripped = self.guardrails.circuit_breaker.record_failure(agent_name)
@@ -712,6 +717,9 @@ class CrewmaticBot:
                 lines.append(f"  *{name.upper()}* ({agent.role}) #{agent.channel}{reports}{delegates}")
             return "Current team:\n" + "\n".join(lines)
 
+        if text_lower == "links":
+            return self.link_tracker.get_summary()
+
         if text_lower == "integrations":
             self._show_integrations_manager(channel_name)
             return "Managing integrations..."  # Prevent fall-through to agent call
@@ -725,7 +733,8 @@ class CrewmaticBot:
                 "  `tasks` — What everyone is working on right now\n"
                 "  `my tasks` — Tasks for this channel's agent\n"
                 "  `team` — Who's on the team and their roles\n"
-                "  `files` — All files and artifacts the team created\n"
+                "  `files` — All local files the team created\n"
+                "  `links` — Notion pages, GitHub repos, designs — all URLs\n"
                 "  `status` — Current project status\n"
                 "\n*Actions:*\n"
                 "  `report` — Ask CEO for a progress report\n"
