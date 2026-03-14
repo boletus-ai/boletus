@@ -906,6 +906,31 @@ class SetupWizard:
             session.state = SetupState.AWAITING_CONFIRMATION
             return
 
+        # 2b. Initialize git repo if not already one (agents need it for code)
+        import subprocess
+        if not os.path.isdir(os.path.join(self.config_dir, ".git")):
+            try:
+                subprocess.run(
+                    ["git", "init"], cwd=self.config_dir,
+                    capture_output=True, timeout=10,
+                )
+                # Create .gitignore for common excludes
+                gitignore_path = os.path.join(self.config_dir, ".gitignore")
+                if not os.path.exists(gitignore_path):
+                    with open(gitignore_path, "w") as f:
+                        f.write(".env\nnode_modules/\n.venv/\n__pycache__/\n*.pyc\ndata/\n")
+                subprocess.run(
+                    ["git", "add", "-A"], cwd=self.config_dir,
+                    capture_output=True, timeout=10,
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", "Initial commit — crewmatic setup"],
+                    cwd=self.config_dir, capture_output=True, timeout=10,
+                )
+                logger.info("Initialized git repo for project codebase")
+            except Exception as exc:
+                logger.warning(f"Could not initialize git repo: {exc}")
+
         session.state = SetupState.COMPLETE
 
         # 3. Success message

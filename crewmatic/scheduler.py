@@ -86,9 +86,15 @@ DEFAULT_TASK_EXECUTION_TEMPLATE = """Execute this task:
 Details: {task_details}
 Assigned by: {created_by}
 
-Do the actual work. If it involves code, write/edit the code.
-If it involves research, do the research and write findings.
-Report exactly what you did and what the result is.
+Do the actual work — produce REAL OUTPUT, not descriptions of what you would do.
+- If it involves code: write actual files, create directories, install packages.
+  Use Write/Edit to create source files. Use Bash to run commands (npm init, pip install, etc.)
+- If it involves research: do the research with WebSearch/WebFetch and write findings to a file.
+- If it involves content: write the actual content to a file (blog post, docs, email draft).
+- If it involves architecture: create the actual project structure, config files, and scaffolding.
+
+Save your work to files in the project directory. Do NOT just post text to Slack.
+Report exactly what you did, what files you created/modified, and what the result is.
 
 IMPORTANT — If you hit a blocker or realize the approach is wrong:
 1. Describe what you tried and why it failed

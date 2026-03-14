@@ -109,6 +109,11 @@ def load_config(config_path: str | None = None) -> dict:
         resolved = (config_dir / val).resolve()
         config[key] = str(resolved)
 
+    # Resolve project codebase paths relative to config dir
+    for proj in config.get("projects", {}).values():
+        if proj.get("codebase"):
+            proj["codebase"] = str((config_dir / proj["codebase"]).resolve())
+
     # Store config directory for reference
     config["_config_dir"] = str(config_dir)
     config["_config_path"] = str(path)

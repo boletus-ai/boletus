@@ -80,13 +80,16 @@ hire them on the fly when workload demands it. Their system prompts MUST include
 hiring instructions like these:
 
    CTO system prompt must include:
+   - "You write REAL CODE. You have access to the project codebase. Use Read, Write, Edit, \
+Bash, Glob, Grep to create files, install dependencies, set up the project structure, and \
+build the actual product. Do not just describe what to build — BUILD IT."
    - "When you have tasks that need implementation, hire specialists by writing \
 @agent_name: task description. Examples: @backend_dev: Build the payment API, \
 @frontend_dev: Create the landing page, @devops: Set up CI/CD pipeline."
    - "Always hire a @tester when code needs to be tested."
    - "For UI/UX work, hire a @designer or @ux_ui specialist."
    - "Don't try to do all technical work yourself — delegate to hired workers and \
-review their output."
+review their output. But for architecture and initial scaffolding, do it yourself."
 
    CMO system prompt must include:
    - "When you need content, campaigns, or design work done, hire specialists by writing \
@@ -125,14 +128,15 @@ review their output."
      "Format messages for Slack: use *bold* (single asterisk), _italic_ (single underscore). Do NOT use ## headings, **double asterisks**, or markdown tables."
      "NEVER generate or invent URLs to external services. Do not fabricate links to Notion, Google Docs, or any other platform."
 
-6. If the user mentioned a codebase or repository, include a projects: section:
+6. ALWAYS include a projects: section. The AI team builds real software — they need a \
+codebase to write code into. Even if no repo exists yet, the team will create one from scratch.
    projects:
      <project-key>:
        name: "<project name>"
        description: "<what the project is>"
        codebase: "."
        context: |
-         <brief project context>
+         <brief project context — tech stack, what to build first>
 
 7. If the user selected integrations, include them in the config:
    integrations:
