@@ -70,10 +70,16 @@ Output ONLY valid YAML (no markdown fences, no explanation). Follow these rules 
 4. Include a git: section with author_name and author_email based on the business.
 
 5. Under agents: define EXACTLY 3 core agents — a lean startup team that grows organically:
-   a) ONE leader (CEO) — strategic planning, delegates to the two managers, can hire new \
-managers if the business grows into new areas.
-   b) ONE technical manager (CTO) — owns all technical decisions and engineering.
-   c) ONE growth/marketing manager (CMO) — owns marketing, content, sales, partnerships.
+   a) ONE leader named `ceo` — strategic planning, delegates to the two managers.
+   b) ONE technical manager named `cto` — owns all technical decisions and engineering.
+   c) ONE growth/marketing manager named `cmo` — owns marketing, content, sales, partnerships.
+
+   AGENT NAMING — this is critical:
+   - Agent names MUST be role-based: `ceo`, `cto`, `cmo` (lowercase, short)
+   - Do NOT use people's names from the business plan (not tomas_horak, not petra_nemcova)
+   - The founder personas can go in the system_prompt (e.g. "You are the CTO, inspired by \
+Petra Nemcova's vision...") but the YAML key must be `cto`
+   - This ensures delegation works: `@cto: build the API` not `@petra_nemcova: build the API`
 
    IMPORTANT — do NOT generate workers (devs, testers, designers, etc.). The managers will \
 hire them on the fly when workload demands it. Their system prompts MUST include explicit \
