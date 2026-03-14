@@ -86,7 +86,9 @@ build the actual product. Do not just describe what to build — BUILD IT."
    - "When you have tasks that need implementation, hire specialists by writing \
 @agent_name: task description. Examples: @backend_dev: Build the payment API, \
 @frontend_dev: Create the landing page, @devops: Set up CI/CD pipeline."
-   - "Always hire a @tester when code needs to be tested."
+   - "TESTING IS MANDATORY. After writing code, always verify it works: run it, check for \
+errors, fix what's broken. The system will auto-create test tasks after code completion. \
+If you need deeper testing, hire @tester: run full test suite and report failures."
    - "For UI/UX work, hire a @designer or @ux_ui specialist."
    - "Don't try to do all technical work yourself — delegate to hired workers and \
 review their output. But for architecture and initial scaffolding, do it yourself."

@@ -93,8 +93,16 @@ Do the actual work — produce REAL OUTPUT, not descriptions of what you would d
 - If it involves content: write the actual content to a file (blog post, docs, email draft).
 - If it involves architecture: create the actual project structure, config files, and scaffolding.
 
+SELF-VERIFICATION — before reporting completion:
+- If you wrote code: run it with Bash and verify it actually works. Fix any errors.
+  At minimum: check syntax (python -c "import module", npm run build, etc.)
+- If you created a project: verify the directory structure exists and files are valid.
+- If you wrote tests: run them and make sure they pass.
+- Do NOT report a task as complete if the code has errors you haven't fixed.
+
 Save your work to files in the project directory. Do NOT just post text to Slack.
 Report exactly what you did, what files you created/modified, and what the result is.
+Include any test/verification output to prove the code works.
 
 IMPORTANT — If you hit a blocker or realize the approach is wrong:
 1. Describe what you tried and why it failed
@@ -359,6 +367,10 @@ class Scheduler:
                                 agent_name=agent_name,
                             )
 
+                    # Auto-create test task if code was written
+                    if self._looks_like_code_task(task_title, response):
+                        self._auto_create_test_task(agent_name, task_id, task_title, response)
+
                     # Auto-persist to memory
                     memory_dir = self.config.get("memory_dir", "./memory")
                     summary = response[:300].strip()
@@ -442,6 +454,52 @@ class Scheduler:
                     agent_name=reviewer_name,
                 )
             return True
+
+    @staticmethod
+    def _looks_like_code_task(title: str, response: str) -> bool:
+        """Heuristic: did this task produce code?"""
+        code_signals = (
+            "created file", "wrote file", "created src/", "created app/",
+            "package.json", "requirements.txt", "setup.py", "pyproject.toml",
+            ".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs",
+            "git commit", "git push", "npm install", "pip install",
+            "mkdir", "def ", "class ", "function ", "import ",
+        )
+        combined = (title + " " + response).lower()
+        return any(signal in combined for signal in code_signals)
+
+    def _auto_create_test_task(
+        self, agent_name: str, task_id: int, task_title: str, response: str,
+    ):
+        """Create an automatic test/verify task after code is written."""
+        # Find the agent's manager — test task goes to the same team
+        agent = self.agents.get(agent_name)
+        if not agent:
+            return
+
+        # Extract file paths mentioned in the response for targeted testing
+        test_desc = (
+            f"Verify and test the code from task #{task_id}: {task_title}\n\n"
+            f"1. Read the files that were created/modified\n"
+            f"2. Run the code — start the server, run the script, execute the tests\n"
+            f"3. Check for: syntax errors, import errors, missing dependencies, crashes\n"
+            f"4. If tests exist, run them. If not, write basic smoke tests.\n"
+            f"5. Report: what works, what's broken, what needs fixing.\n\n"
+            f"If something is broken, start your response with ESCALATION: "
+            f"so it gets sent back for fixing."
+        )
+
+        # Assign to @tester if exists, otherwise to the same agent
+        tester = self.agents.get("tester")
+        assign_to = "tester" if tester else agent_name
+
+        self.task_manager.add_task(
+            test_desc,
+            assigned_to=assign_to,
+            created_by=agent_name,
+            priority="high",
+        )
+        logger.info(f"Auto-created test task for #{task_id} → {assign_to}")
 
     def planning_loop(self):
         """Leader continuously plans work when task board runs low."""
