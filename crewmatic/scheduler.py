@@ -23,10 +23,18 @@ Your current team:
 
 WHAT TO DO NOW:
 1. Check what your team has COMPLETED since last planning.
-2. Review what's still OPEN on the task board. Don't duplicate.
+2. Review what's still OPEN on the task board.
 3. Assess if your team has the right people. If not — HIRE.
 4. Decide the next concrete steps to push forward.
-5. Create NEW tasks for your team.
+5. Create NEW tasks only if needed.
+
+CRITICAL — DO NOT RE-DELEGATE EXISTING TASKS:
+If a task is already on the board (status: todo or in_progress), do NOT
+delegate it again. Your team will pick it up automatically. Re-delegating
+creates duplicates and wastes everyone's time. Only delegate NEW work
+that is not already covered by an existing task. If the board already has
+the right tasks, just say "Board looks good, no new tasks needed" and
+move on.
 
 DELEGATING TASKS (existing team):
 {delegation_format}

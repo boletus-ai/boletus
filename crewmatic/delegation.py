@@ -134,6 +134,28 @@ def parse_unknown_delegations(response: str, known_names: set[str]) -> list[tupl
     return results
 
 
+def _fuzzy_match(new_title: str, existing_titles: set[str], threshold: float = 0.6) -> bool:
+    """Check if new_title is similar enough to any existing title.
+
+    Uses word-level Jaccard similarity. A threshold of 0.6 means 60% of
+    words must overlap to be considered a duplicate.
+    """
+    new_words = set(new_title.lower().split())
+    if len(new_words) < 3:
+        # Very short titles — fall back to exact match
+        return new_title.lower().strip() in existing_titles
+    for existing in existing_titles:
+        existing_words = set(existing.split())
+        if not existing_words:
+            continue
+        intersection = new_words & existing_words
+        union = new_words | existing_words
+        similarity = len(intersection) / len(union) if union else 0
+        if similarity >= threshold:
+            return True
+    return False
+
+
 _PRIORITY_PATTERN = re.compile(
     r"\[?(HIGH|CRITICAL|URGENT|LOW)\]?\s*:?\s*",
     re.IGNORECASE,
@@ -196,8 +218,8 @@ def handle_delegations(
         if dedup_key in seen:
             logger.debug(f"Skipping duplicate delegation: {task_desc[:60]}")
             continue
-        if task_desc.lower().strip() in existing_titles:
-            logger.debug(f"Skipping already-on-board task: {task_desc[:60]}")
+        if _fuzzy_match(task_desc, existing_titles):
+            logger.debug(f"Skipping similar task already on board: {task_desc[:60]}")
             continue
         seen.add(dedup_key)
         cleaned_desc, priority = _extract_priority(task_desc)
