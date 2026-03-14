@@ -54,6 +54,7 @@ class SetupSession:
     selected_integrations: list[str] = field(default_factory=list)
     pending_credentials: list[dict] = field(default_factory=list)  # integrations waiting for creds
     collected_credentials: dict = field(default_factory=dict)  # env_var -> value
+    credential_total: int = 0  # total integrations to collect credentials for
     proposed_yaml: str = ""
     proposed_config: dict | None = None
     email_mode: str = "drafts"  # "drafts" or "send"
@@ -571,6 +572,7 @@ class SetupWizard:
             return
 
         session.pending_credentials = pending
+        session.credential_total = len(pending)
         session.state = SetupState.AWAITING_CREDENTIALS
         self._ask_next_credential(session, channel_id, thread_ts, say)
 
@@ -597,7 +599,7 @@ class SetupWizard:
         setup_msg = current.get("setup_message", f"Please provide credentials for {current['name']}.")
 
         remaining = len(session.pending_credentials)
-        total = remaining + len(session.collected_credentials)
+        total = session.credential_total
         current_num = total - remaining + 1
         say(
             text=f"*Connecting {current_num}/{total}* — {setup_msg}",
@@ -618,6 +620,9 @@ class SetupWizard:
 
         # Skip if user says "skip"
         if token.lower() in ("skip", "later", "next"):
+            # Remove any partially-collected vars for this integration
+            for var in env_vars:
+                session.collected_credentials.pop(var, None)
             say(
                 text=f"Skipping *{current['name']}* — you can set it up later in `.env`.",
                 channel=channel_id,

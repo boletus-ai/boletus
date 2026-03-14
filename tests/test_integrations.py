@@ -87,10 +87,24 @@ def test_match_no_keywords():
 
 
 def test_build_mcp_config_with_mcp():
-    """Integrations with mcp field get included."""
+    """Integrations with mcp field get included when env var is set."""
+    import os
+    os.environ["DATABASE_URL"] = "postgresql://localhost/test"
+    try:
+        config = build_mcp_config_for_integrations(["postgres"])
+        assert "mcpServers" in config
+        assert "postgres" in config["mcpServers"]
+    finally:
+        del os.environ["DATABASE_URL"]
+
+
+def test_build_mcp_config_skips_when_env_unset():
+    """Integrations with mcp field are skipped when env var is not set."""
+    import os
+    os.environ.pop("DATABASE_URL", None)
     config = build_mcp_config_for_integrations(["postgres"])
     assert "mcpServers" in config
-    assert "postgres" in config["mcpServers"]
+    assert "postgres" not in config["mcpServers"]
 
 
 def test_build_mcp_config_without_mcp():

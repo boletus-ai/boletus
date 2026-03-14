@@ -250,7 +250,7 @@ CATALOG = {
             "Use generate_diagram for creating FigJam diagrams."
         ),
         "claude_ai_tools": ["mcp__claude_ai_Figma__*"],
-        "auto_roles": ["manager", "worker"],
+        "auto_roles": ["manager"],
         "keywords": ["figma", "design", "ui design", "mockup", "prototype", "wireframe"],
     },
     "canva": {
@@ -267,7 +267,7 @@ CATALOG = {
             "Use generate-design to create new designs, export-design to export them."
         ),
         "claude_ai_tools": ["mcp__claude_ai_Canva__*"],
-        "auto_roles": ["manager", "worker"],
+        "auto_roles": ["manager"],
         "keywords": ["canva", "design", "presentation", "graphics", "social media", "logo"],
     },
 
@@ -459,7 +459,7 @@ CATALOG = {
             "Use the generate tool to create content."
         ),
         "claude_ai_tools": ["mcp__claude_ai_Gamma__*"],
-        "auto_roles": ["manager", "worker"],
+        "auto_roles": ["manager"],
         "keywords": ["gamma", "presentation", "slides", "pitch deck", "deck"],
     },
     "miro": {
@@ -526,14 +526,23 @@ def build_mcp_config_for_integrations(integration_names: list[str]) -> dict:
             continue  # CLI-only integration, no MCP server
         # Resolve ${ENV_VAR} placeholders in args
         resolved_args = []
+        skip_server = False
         for arg in mcp["args"]:
             if arg.startswith("${") and arg.endswith("}"):
                 var_name = arg[2:-1]
                 val = os.environ.get(var_name, "")
                 if val:
                     resolved_args.append(val)
+                else:
+                    logger.warning(
+                        f"Skipping MCP server '{name}': env var {var_name} is not set"
+                    )
+                    skip_server = True
+                    break
             else:
                 resolved_args.append(arg)
+        if skip_server:
+            continue
         server = {
             "command": mcp["command"],
             "args": resolved_args,

@@ -361,7 +361,8 @@ class CrewmaticBot:
         if claude_ai_patterns and allowed_tools:
             allowed_tools = allowed_tools + "," + ",".join(claude_ai_patterns)
         elif claude_ai_patterns:
-            allowed_tools = ",".join(claude_ai_patterns)
+            default_tools = "Read,Write,Edit,Bash,Glob,Grep,WebFetch,WebSearch"
+            allowed_tools = default_tools + "," + ",".join(claude_ai_patterns)
 
         try:
             result = self.claude.call(

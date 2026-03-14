@@ -196,7 +196,7 @@ Existing agents (YAML):
 Generate ONLY a single new agent YAML block that can be inserted under the \
 agents: key. The block must:
 - Have a unique name not already in use (use snake_case, e.g. backend_dev, content_writer)
-- Include: channel, model, role, system_prompt, tools, reports_to
+- Include: channel, model, role, system_prompt, tools, reports_to, integrations
 - IMPORTANT: Workers share their manager's channel. Set channel to the SAME channel as \
 the hiring manager (e.g. if CTO with channel "engineering" hires, the worker gets channel: "engineering")
 - delegates_to must only reference agents that already exist (or the new agent itself)
@@ -207,6 +207,10 @@ the hiring manager (e.g. if CTO with channel "engineering" hires, the worker get
 - Technical workers (devs, testers, devops) get tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
 - Non-technical workers (content, design, sales) get tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
 - reports_to should be the manager who is hiring (infer from context)
+- Include an integrations: field based on the agent's purpose. Technical agents (devs, testers, devops) \
+should get [github]. Design agents (ux_ui, designer) should get [figma, canva]. Content agents \
+(content_writer, copywriter) should get [canva, gamma]. Only include integrations that are in the \
+existing global integrations list.
 
 Output ONLY the YAML block (agent_name: followed by its config). No fences, no explanation."""
 
