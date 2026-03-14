@@ -189,21 +189,59 @@ class TaskManager:
             tasks = self._load()
             if not tasks:
                 return "No tasks."
-            lines = []
+
+            # Group by assignee
+            by_agent: dict[str, list[dict]] = {}
             done_count = 0
+            cancelled_count = 0
             for t in tasks:
                 if t["status"] == "done":
                     done_count += 1
                     if not include_done:
                         continue
-                icon = {"done": "[DONE]", "in_progress": "[WIP]", "cancelled": "[X]"}.get(t["status"], "[TODO]")
-                lines.append(
-                    f"{icon} #{t['id']} [{t['priority'].upper()}] {t['title']} "
-                    f"-> {t['assigned_to']} (from {t['created_by']})"
-                )
-            if not include_done and done_count > 0:
-                lines.append(f"\n({done_count} completed tasks hidden)")
-            return "\n".join(lines) if lines else "No open tasks."
+                if t["status"] == "cancelled":
+                    cancelled_count += 1
+                    if not include_done:
+                        continue
+                agent = t.get("assigned_to", "unassigned")
+                by_agent.setdefault(agent, []).append(t)
+
+            if not by_agent:
+                parts = []
+                if done_count:
+                    parts.append(f"{done_count} completed")
+                if cancelled_count:
+                    parts.append(f"{cancelled_count} cancelled")
+                suffix = f" ({', '.join(parts)})" if parts else ""
+                return f"No open tasks.{suffix}"
+
+            status_icon = {
+                "in_progress": "Working",
+                "todo": "Todo",
+                "done": "Done",
+                "cancelled": "Cancelled",
+            }
+
+            lines = []
+            for agent, agent_tasks in sorted(by_agent.items()):
+                lines.append(f"*{agent.upper()}:*")
+                for t in agent_tasks:
+                    status = status_icon.get(t["status"], "?")
+                    # Truncate title for readability
+                    title = t["title"][:80]
+                    if len(t["title"]) > 80:
+                        title += "..."
+                    pri = t["priority"][0].upper()  # H/M/L
+                    lines.append(f"  #{t['id']} [{pri}] {title}  _({status})_")
+
+            if not include_done and (done_count or cancelled_count):
+                parts = []
+                if done_count:
+                    parts.append(f"{done_count} done")
+                if cancelled_count:
+                    parts.append(f"{cancelled_count} cancelled")
+                lines.append(f"\n_{', '.join(parts)} — hidden_")
+            return "\n".join(lines)
 
     def get_stuck_tasks(self) -> list[dict]:
         """Return tasks stuck in_progress for longer than 2x stuck_timeout."""
