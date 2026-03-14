@@ -37,6 +37,7 @@ class SetupState(enum.Enum):
     AWAITING_CREDENTIALS = "awaiting_credentials"
     AWAITING_EMAIL_PERMISSION = "awaiting_email_permission"
     AWAITING_CONFIRMATION = "awaiting_confirmation"
+    AWAITING_MODIFICATION = "awaiting_modification"
     CREATING = "creating"
     COMPLETE = "complete"
 
@@ -239,6 +240,9 @@ class SetupWizard:
 
         elif session.state == SetupState.AWAITING_CREDENTIALS:
             self._handle_credential_input(session, text, channel_id, thread_ts, say, message_ts=message_ts)
+
+        elif session.state == SetupState.AWAITING_MODIFICATION:
+            self._handle_modification(session, text, channel_id, thread_ts, say)
 
         elif session.state == SetupState.AWAITING_CONFIRMATION:
             self._handle_confirmation_text(session, text, channel_id, thread_ts, say)
@@ -669,13 +673,12 @@ class SetupWizard:
         elif any(word in text_lower for word in restart):
             self._handle_restart(session, channel_id, thread_ts, say)
         elif any(word in text_lower for word in modify):
+            session.state = SetupState.AWAITING_MODIFICATION
             say(
                 text="Sure, what would you like to change? Describe the modification and I'll update the config.",
                 channel=channel_id,
                 thread_ts=thread_ts,
             )
-            # Stay in AWAITING_CONFIRMATION — next message will be treated as modification
-            # unless it matches an affirmative/restart keyword
         else:
             # Treat as a modification request
             self._handle_modification(session, text, channel_id, thread_ts, say)
@@ -1047,6 +1050,7 @@ class SetupWizard:
             if not session:
                 return
 
+            session.state = SetupState.AWAITING_MODIFICATION
             self.app.client.chat_postMessage(
                 channel=channel_id,
                 thread_ts=thread_ts,
