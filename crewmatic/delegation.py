@@ -101,8 +101,21 @@ def parse_unknown_delegations(response: str, known_names: set[str]) -> list[tupl
         raw_name = (m.group(1) or m.group(2) or m.group(3)).lower()
         if raw_name in known_lower:
             continue
-        # Skip common false positives
-        if raw_name in ("here", "channel", "everyone", "team", "all", "hire"):
+        # Skip common false positives (words that appear as **word**: in markdown)
+        if raw_name in (
+            "here", "channel", "everyone", "team", "all", "hire",
+            "total", "summary", "note", "notes", "example", "examples",
+            "update", "status", "action", "actions", "result", "results",
+            "key", "goal", "goals", "priority", "important", "warning",
+            "step", "steps", "phase", "option", "options", "next",
+            "revenue", "cost", "costs", "budget", "target", "metric",
+            "metrics", "timeline", "deadline", "risk", "risks",
+        ):
+            continue
+        # Skip if task text looks like a table row (starts with |)
+        start_peek = m.end()
+        peek_text = response[start_peek:start_peek + 20].strip()
+        if peek_text.startswith("|"):
             continue
 
         start = m.end()
