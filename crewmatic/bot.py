@@ -665,7 +665,7 @@ class CrewmaticBot:
 
         if text_lower == "integrations":
             self._show_integrations_manager(channel_name)
-            return None  # Response sent via blocks
+            return "Managing integrations..."  # Prevent fall-through to agent call
 
         if text_lower == "files":
             return self._list_workspace_files()
@@ -712,6 +712,7 @@ class CrewmaticBot:
                 self.post_to_channel(channel_name, response, thread_ts=thread_ts, agent_name=agent_name)
             else:
                 # Fallback to raw post if channel name unknown
+                response = markdown_to_slack(response)
                 max_len = self.settings.get("slack_max_length", 39000)
                 if len(response) > max_len:
                     response = response[:max_len] + "\n\n... (truncated)"
@@ -720,8 +721,6 @@ class CrewmaticBot:
                     kwargs["thread_ts"] = thread_ts
                 client = self.get_agent_client(agent_name)
                 client.chat_postMessage(**kwargs)
-                with self._bot_msg_lock:
-                    self.recent_bot_messages[channel_id] = time.time()
             self._handle_delegations(agent_name, response)
         except CircuitBrokenError as e:
             logger.error(f"Circuit breaker tripped for {agent_name}: {e}")
@@ -751,7 +750,15 @@ class CrewmaticBot:
             except Exception:
                 pass
         except Exception as e:
-            logger.error(f"Agent reply error ({agent_name}): {e}")
+            logger.error(f"Agent reply error ({agent_name}): {e}", exc_info=True)
+            try:
+                client = self.get_agent_client(agent_name)
+                client.chat_postMessage(
+                    channel=channel_id, thread_ts=thread_ts,
+                    text=f"Something went wrong: {type(e).__name__}: {str(e)[:200]}",
+                )
+            except Exception:
+                pass
 
     def _route_message(self, event, is_mention: bool = False):
         """Shared message routing logic for mentions and direct messages."""

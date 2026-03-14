@@ -66,6 +66,16 @@ class ClaudeRunner:
         if env_overrides:
             env.update(env_overrides)
 
+        # Guard against ARG_MAX — Linux limit is ~2MB for total argv
+        # If prompt is too large, truncate with a warning
+        max_prompt_bytes = 1_500_000  # ~1.5MB, safe under 2MB ARG_MAX
+        if len(user_message.encode("utf-8")) > max_prompt_bytes:
+            logger.warning(
+                f"Prompt too large ({len(user_message)} chars), truncating to fit ARG_MAX"
+            )
+            user_message = user_message[:max_prompt_bytes // 2] + \
+                "\n\n... [CONTEXT TRUNCATED — prompt exceeded size limit]"
+
         cmd = [
             "claude",
             "-p", user_message,
@@ -87,19 +97,25 @@ class ClaudeRunner:
         try:
             logger.debug("Waiting for Claude semaphore...")
             with self._semaphore:
-                result = subprocess.run(
+                proc = subprocess.Popen(
                     cmd,
-                    capture_output=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
-                    timeout=self.timeout,
                     cwd=work_dir,
                     env=env,
                 )
-            if result.returncode != 0:
-                error_msg = result.stderr[:500].strip()
-                logger.error(f"Claude CLI error (exit {result.returncode}): {error_msg}")
-                raise LLMCLIError(f"Claude CLI exit {result.returncode}: {error_msg}")
-            return result.stdout.strip()
+                try:
+                    stdout, stderr = proc.communicate(timeout=self.timeout)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=10)
+                    raise
+            if proc.returncode != 0:
+                error_msg = (stderr or "")[:500].strip()
+                logger.error(f"Claude CLI error (exit {proc.returncode}): {error_msg}")
+                raise LLMCLIError(f"Claude CLI exit {proc.returncode}: {error_msg}")
+            return stdout.strip()
         except subprocess.TimeoutExpired:
             raise LLMTimeoutError(
                 f"Claude didn't respond within {self.timeout // 60} minutes"

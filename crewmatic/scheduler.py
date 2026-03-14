@@ -323,7 +323,10 @@ class Scheduler:
                     )
 
                 if verified:
-                    self.task_manager.complete_task(task_id, result=response[:500])
+                    completed = self.task_manager.complete_task(task_id, result=response[:500])
+                    if not completed:
+                        logger.warning(f"[{agent_name.upper()}] Task #{task_id} could not be marked complete (cancelled or missing)")
+                        continue
                     channel = get_effective_channel(agent_name, self.agents)
                     self.post(
                         channel,

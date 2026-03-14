@@ -277,6 +277,13 @@ class SetupWizard:
         say: Callable,
     ):
         """AWAITING_BUSINESS -> save description, ask follow-ups."""
+        if not text or not text.strip():
+            say(
+                text="I didn't get any content. Please describe your business or upload a document (PDF, text).",
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+            return
         session.business_description = text
         session.state = SetupState.AWAITING_DETAILS
 

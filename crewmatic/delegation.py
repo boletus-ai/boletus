@@ -223,6 +223,9 @@ def handle_delegations(
             continue
         seen.add(dedup_key)
         cleaned_desc, priority = _extract_priority(task_desc)
+        # If priority extraction made the title too short, use the original
+        if len(cleaned_desc.strip()) < 5:
+            cleaned_desc = task_desc
         logger.info(f"Delegation: {source_agent} -> {target_agent} [{priority}]: {cleaned_desc[:80]}")
         add_task_fn(cleaned_desc, assigned_to=target_agent, created_by=source_agent, priority=priority)
 
