@@ -283,7 +283,15 @@ def cmd_setup(args):
 
     import os
     from dotenv import load_dotenv
-    load_dotenv()
+
+    # Auto-run init if no .env exists
+    env_path = os.path.join(os.getcwd(), ".env")
+    if not os.path.exists(env_path):
+        print("No .env found — running initial setup first...\n")
+        cmd_init(args)
+
+    # Load .env (handles tokens written by init or manually)
+    load_dotenv(override=True)
 
     config_dir = os.getcwd()
     if args.config:
@@ -302,7 +310,7 @@ def cmd_setup(args):
 
     if not bot_token or not app_token:
         print("Error: SLACK_BOT_TOKEN and SLACK_APP_TOKEN must be set.")
-        print("Run: boletus doctor")
+        print("Run: boletus init")
         return 1
 
     app = App(token=bot_token)
