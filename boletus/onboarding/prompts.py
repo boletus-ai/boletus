@@ -2,7 +2,7 @@
 
 WELCOME_MESSAGE = (
     "*Step 1/5 — Tell me about your business*\n\n"
-    "Hi there! I'm your Crewmatic setup assistant.\n\n"
+    "Hi there! I'm your Boletus setup assistant.\n\n"
     "It looks like you don't have a crew configured yet. "
     "I'll help you set up your AI team right here in Slack.\n\n"
     "Tell me about your business and what you want your AI team to do. "

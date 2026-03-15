@@ -15,7 +15,7 @@ MAX_CHANNEL_NAME_LEN = 80
 
 
 class ChannelManager:
-    """Creates and manages Slack channels for a Crewmatic crew."""
+    """Creates and manages Slack channels for a Boletus crew."""
 
     def __init__(self, client: WebClient):
         self.client = client

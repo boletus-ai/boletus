@@ -34,7 +34,7 @@ CATALOG = {
             "*Connect GitHub*\n\n"
             "1. Go to <https://github.com/settings/tokens?type=beta|github.com/settings/tokens>\n"
             "2. Click *Generate new token*\n"
-            "3. Give it a name (e.g. `crewmatic`), select scopes: `repo`, `workflow`\n"
+            "3. Give it a name (e.g. `boletus`), select scopes: `repo`, `workflow`\n"
             "4. Copy the token and *paste it here*"
         ),
         "agent_instructions": (
@@ -629,7 +629,7 @@ def save_credentials_to_env(config_dir: str, credentials: dict[str, str]) -> str
 
     # Write back
     with open(env_path, "w") as f:
-        f.write("# Crewmatic — auto-generated credentials\n")
+        f.write("# Boletus — auto-generated credentials\n")
         for key, val in sorted(existing.items()):
             # Don't quote if already quoted
             if val and not (val.startswith('"') or val.startswith("'")):

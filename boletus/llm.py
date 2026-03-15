@@ -12,19 +12,19 @@ logger = logging.getLogger(__name__)
 # Shared exceptions
 # ---------------------------------------------------------------------------
 
-class CrewmaticError(Exception):
-    """Base exception for crewmatic errors."""
+class BoletusError(Exception):
+    """Base exception for boletus errors."""
 
 
-class LLMTimeoutError(CrewmaticError):
+class LLMTimeoutError(BoletusError):
     """LLM call timed out."""
 
 
-class LLMCLIError(CrewmaticError):
+class LLMCLIError(BoletusError):
     """Claude CLI returned a non-zero exit code."""
 
 
-class LLMNotFoundError(CrewmaticError):
+class LLMNotFoundError(BoletusError):
     """Claude CLI binary not found."""
 
 
@@ -70,14 +70,14 @@ class AnthropicAPIRunner:
         try:
             import anthropic  # noqa: F401
         except ImportError:
-            raise CrewmaticError(
+            raise BoletusError(
                 "The 'anthropic' package is required for the API backend. "
                 "Install it with: pip install anthropic"
             )
 
         self._api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not self._api_key:
-            raise CrewmaticError(
+            raise BoletusError(
                 "No Anthropic API key found. Set ANTHROPIC_API_KEY or pass api_key."
             )
 
@@ -112,7 +112,7 @@ class AnthropicAPIRunner:
 
         Raises:
             LLMTimeoutError: If the API call times out.
-            CrewmaticError: On any other API error.
+            BoletusError: On any other API error.
         """
         import anthropic
 
@@ -149,4 +149,4 @@ class AnthropicAPIRunner:
                 f"Anthropic API didn't respond within {self.timeout} seconds"
             )
         except anthropic.APIError as e:
-            raise CrewmaticError(f"Anthropic API error: {e}")
+            raise BoletusError(f"Anthropic API error: {e}")

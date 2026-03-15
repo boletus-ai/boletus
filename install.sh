@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Crewmatic — one-command install and setup
+# Boletus — one-command install and setup
 set -e
 
-echo "=== Installing Crewmatic ==="
+echo "=== Installing Boletus ==="
 echo
 
 # Create venv if needed
@@ -58,5 +58,5 @@ echo
 echo "=== Ready! ==="
 echo
 echo "  source .venv/bin/activate"
-echo "  crewmatic setup       # wizard creates team + channels in Slack"
+echo "  boletus setup       # wizard creates team + channels in Slack"
 echo

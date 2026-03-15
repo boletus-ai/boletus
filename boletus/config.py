@@ -85,7 +85,7 @@ def load_config(config_path: str | None = None) -> dict:
 
     if not path or not path.exists():
         raise FileNotFoundError(
-            "No crew.yaml found. Run 'crewmatic init' to create one."
+            "No crew.yaml found. Run 'boletus init' to create one."
         )
 
     logger.info(f"Loading config from {path}")

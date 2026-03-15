@@ -1,4 +1,4 @@
-"""Local terminal REPL — run crewmatic without Slack."""
+"""Local terminal REPL — run boletus without Slack."""
 
 import logging
 import os
@@ -8,7 +8,7 @@ import sys
 from dotenv import load_dotenv
 
 from .agent_loader import AgentConfig, load_agents, get_leader
-from .claude_runner import ClaudeRunner, CrewmaticError
+from .claude_runner import ClaudeRunner, BoletusError
 from .config import load_config
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
@@ -31,7 +31,7 @@ Available commands:
 
 
 class LocalRunner:
-    """Interactive terminal REPL for crewmatic — no Slack required."""
+    """Interactive terminal REPL for boletus — no Slack required."""
 
     def __init__(self, config_path: str | None = None):
         load_dotenv()
@@ -180,14 +180,14 @@ class LocalRunner:
 
     def run(self):
         """Start the interactive REPL loop."""
-        name = self.config.get("name", "crewmatic")
+        name = self.config.get("name", "boletus")
         print(f"{name} — local mode")
         print(f"Agents: {', '.join(self.agents.keys())}")
         print("Type 'help' for commands, '@agent: message' to talk to an agent.\n")
 
         while True:
             try:
-                text = input("crewmatic> ").strip()
+                text = input("boletus> ").strip()
             except (EOFError, KeyboardInterrupt):
                 print("\nBye.")
                 break
@@ -222,7 +222,7 @@ class LocalRunner:
                 response = self.call_agent(agent_name, message)
                 print(f"\n[{agent_name.upper()}]\n{response}\n")
                 self._handle_delegations(agent_name, response)
-            except CrewmaticError as e:
+            except BoletusError as e:
                 print(f"[ERROR] {e}\n")
             except Exception as e:
                 logger.error(f"Agent call failed: {e}")

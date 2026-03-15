@@ -1,6 +1,6 @@
 """Tests for delegation parsing."""
 
-from crewmatic.delegation import parse_delegations, parse_unknown_delegations, handle_delegations
+from boletus.delegation import parse_delegations, parse_unknown_delegations, handle_delegations
 
 
 AGENT_NAMES = {"cto", "cmo", "dev", "designer"}

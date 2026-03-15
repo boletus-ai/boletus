@@ -1,4 +1,4 @@
-# Crewmatic
+# Boletus
 
 **Your first AI company** — open-source framework that runs an autonomous AI team via Slack + Claude CLI.
 
@@ -16,8 +16,8 @@ Send a business plan to your CEO agent. It hires a team, delegates tasks, writes
 ### 1. Install
 
 ```bash
-git clone https://github.com/Majny/crewmatic.git
-cd crewmatic
+git clone https://github.com/boletus-ai/boletus.git
+cd boletus
 ./install.sh
 ```
 
@@ -50,7 +50,7 @@ Saved tokens to .env
 
 ```bash
 source .venv/bin/activate
-crewmatic setup
+boletus setup
 ```
 
 The wizard DMs you in Slack, asks about your business, generates `crew.yaml`, creates channels, and starts the team.
@@ -118,14 +118,14 @@ No manual configuration needed — the team grows organically.
 ## CLI commands
 
 ```bash
-crewmatic setup         # Recommended — Slack wizard creates team + channels + starts bot
-crewmatic run           # Start the bot (requires crew.yaml)
-crewmatic run -v        # Start with debug logging
-crewmatic init          # Manual — creates default crew.yaml + .env interactively
-crewmatic validate      # Check crew.yaml without starting
-crewmatic agents        # List configured agents
-crewmatic tasks         # Show task board
-crewmatic doctor        # Check prerequisites
+boletus setup         # Recommended — Slack wizard creates team + channels + starts bot
+boletus run           # Start the bot (requires crew.yaml)
+boletus run -v        # Start with debug logging
+boletus init          # Manual — creates default crew.yaml + .env interactively
+boletus validate      # Check crew.yaml without starting
+boletus agents        # List configured agents
+boletus tasks         # Show task board
+boletus doctor        # Check prerequisites
 ```
 
 ## Integrations (24 services)
@@ -140,7 +140,7 @@ Three tiers — zero to full setup:
 
 ### How integrations work
 
-Crewmatic agents run via Claude CLI on your machine. When an agent needs to send an email or read a Notion page, it uses Claude's built-in connectors — the same ones you see in [claude.ai](https://claude.ai).
+Boletus agents run via Claude CLI on your machine. When an agent needs to send an email or read a Notion page, it uses Claude's built-in connectors — the same ones you see in [claude.ai](https://claude.ai).
 
 **Claude.ai Connectors** (Gmail, Notion, Figma, etc.) — your agents use whatever services you've connected in your Claude account. No API keys needed. To set up:
 
@@ -150,7 +150,7 @@ Crewmatic agents run via Claude CLI on your machine. When an agent needs to send
 
 Your agents will be able to read emails, create drafts, search Notion, create Canva designs, and more — all through your connected accounts.
 
-**CLI tools** (GitHub, AWS, Stripe) — these need API tokens because agents use the actual CLI tools (`gh`, `aws`, `stripe`). The setup wizard asks for these during `crewmatic setup`.
+**CLI tools** (GitHub, AWS, Stripe) — these need API tokens because agents use the actual CLI tools (`gh`, `aws`, `stripe`). The setup wizard asks for these during `boletus setup`.
 
 **Local MCP** (PostgreSQL, custom) — auto-spawned MCP server processes for direct database access.
 
@@ -235,7 +235,7 @@ projects:
 ## Architecture
 
 ```
-crewmatic/
+boletus/
 ├── bot.py             # Slack orchestration — wires everything together
 ├── scheduler.py       # Planning, worker, and report loops
 ├── delegation.py      # @agent: task parsing + auto-hire detection
@@ -263,7 +263,7 @@ crewmatic/
 - **Event deduplication** — Slack at-least-once delivery doesn't cause duplicate agent calls
 - **Subprocess timeout + kill** — Claude CLI processes killed on timeout (no zombies)
 
-When agents have `tools` configured, Crewmatic passes `--dangerously-skip-permissions` to Claude CLI. Set `skip_permissions: false` in settings to disable.
+When agents have `tools` configured, Boletus passes `--dangerously-skip-permissions` to Claude CLI. Set `skip_permissions: false` in settings to disable.
 
 ## Examples
 

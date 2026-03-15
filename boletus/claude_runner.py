@@ -6,7 +6,7 @@ import os
 import subprocess
 import threading
 
-from .llm import CrewmaticError, LLMTimeoutError, LLMCLIError, LLMNotFoundError  # noqa: F401
+from .llm import BoletusError, LLMTimeoutError, LLMCLIError, LLMNotFoundError  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

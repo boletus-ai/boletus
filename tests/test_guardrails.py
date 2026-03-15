@@ -1,10 +1,10 @@
-"""Tests for crewmatic.guardrails — circuit breaker and execution guard."""
+"""Tests for boletus.guardrails — circuit breaker and execution guard."""
 
 import time
 import pytest
 from unittest.mock import MagicMock
 
-from crewmatic.guardrails import CircuitBreaker, ExecutionGuard, CircuitBrokenError, GuardError
+from boletus.guardrails import CircuitBreaker, ExecutionGuard, CircuitBrokenError, GuardError
 
 
 class TestCircuitBreaker:

@@ -1,6 +1,6 @@
 """Tests for cost_tracker module."""
 
-from crewmatic.cost_tracker import CostTracker
+from boletus.cost_tracker import CostTracker
 
 
 def test_record_and_summary(tmp_path):

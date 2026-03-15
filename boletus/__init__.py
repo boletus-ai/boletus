@@ -1,4 +1,4 @@
-"""Crewmatic — Your first AI company."""
+"""Boletus — Your first AI company."""
 
 __version__ = "0.1.0"
 
@@ -12,22 +12,22 @@ from .project_manager import ProjectManager
 
 def __getattr__(name):
     """Lazy imports for modules with heavy dependencies (slack, dotenv)."""
-    if name == "CrewmaticBot":
-        from .bot import CrewmaticBot
-        return CrewmaticBot
+    if name == "BoletusBot":
+        from .bot import BoletusBot
+        return BoletusBot
     if name == "ClaudeRunner":
         from .claude_runner import ClaudeRunner
         return ClaudeRunner
     if name == "WorkflowEngine":
         from .workflows import WorkflowEngine
         return WorkflowEngine
-    raise AttributeError(f"module 'crewmatic' has no attribute {name!r}")
+    raise AttributeError(f"module 'boletus' has no attribute {name!r}")
 
 
 __all__ = [
     "AgentConfig",
     "ClaudeRunner",
-    "CrewmaticBot",
+    "BoletusBot",
     "load_agents",
     "load_config",
     "get_leader",

@@ -1,9 +1,9 @@
-"""Tests for crewmatic.integrations — integration catalog and helpers."""
+"""Tests for boletus.integrations — integration catalog and helpers."""
 
 import os
 import tempfile
 
-from crewmatic.integrations import (
+from boletus.integrations import (
     get_integration, list_integrations, CATALOG,
     resolve_integrations_for_agent, match_integrations_from_description,
     build_mcp_config_for_integrations, check_integration_credentials,

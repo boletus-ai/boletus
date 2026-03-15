@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from crewmatic.config import load_config, _interpolate_env
+from boletus.config import load_config, _interpolate_env
 
 
 def test_interpolate_env():

@@ -1,4 +1,4 @@
-"""Crewmatic Slack bot — core orchestration engine."""
+"""Boletus Slack bot — core orchestration engine."""
 
 import json
 import logging
@@ -17,7 +17,7 @@ from .agent_loader import AgentConfig, load_agents, get_leader, get_effective_ch
 from .claude_runner import ClaudeRunner
 from .config import load_config
 from .cost_tracker import CostTracker
-from .llm import CrewmaticError
+from .llm import BoletusError
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
 from .guardrails import CircuitBreaker, CircuitBrokenError, ExecutionGuard
@@ -32,8 +32,8 @@ from .workflows import WorkflowEngine
 logger = logging.getLogger(__name__)
 
 
-class CrewmaticBot:
-    """The main Crewmatic bot — wires everything together."""
+class BoletusBot:
+    """The main Boletus bot — wires everything together."""
 
     def __init__(self, config_path: str | None = None):
         load_dotenv()
@@ -165,7 +165,7 @@ class CrewmaticBot:
             auth = self.app.client.auth_test()
             self.bot_user_id = auth["user_id"]
             self.all_bot_user_ids.add(self.bot_user_id)
-            self.bot_user_id_to_agent[self.bot_user_id] = "crewmatic"
+            self.bot_user_id_to_agent[self.bot_user_id] = "boletus"
         except Exception as e:
             logger.error(f"Failed to get bot user ID: {e}")
 
@@ -796,7 +796,7 @@ class CrewmaticBot:
             leader = get_leader(self.agents)
             if leader and (not agent or leader.channel != agent.channel):
                 self.post_to_channel(leader.channel, alert, agent_name=leader.name)
-        except CrewmaticError as e:
+        except BoletusError as e:
             logger.error(f"Agent {agent_name} LLM error: {e}")
             try:
                 client = self.get_agent_client(agent_name)
@@ -912,7 +912,7 @@ class CrewmaticBot:
                 view={
                     "type": "home",
                     "blocks": [
-                        {"type": "header", "text": {"type": "plain_text", "text": f"{self.config.get('name', 'Crewmatic')} Dashboard"}},
+                        {"type": "header", "text": {"type": "plain_text", "text": f"{self.config.get('name', 'Boletus')} Dashboard"}},
                         {"type": "section", "text": {"type": "mrkdwn", "text": f"*Active agents:* {', '.join(a.upper() for a in self.agents.keys())}"}},
                         {"type": "section", "text": {"type": "mrkdwn", "text": "*Channels:*\n" + "\n".join(f"• #{a.channel} → {n.upper()}" for n, a in self.agents.items())}},
                         {"type": "section", "text": {"type": "mrkdwn", "text": f"*Report schedule:* {schedule_text}"}},
@@ -1132,7 +1132,7 @@ class CrewmaticBot:
             )
 
             response = self.claude.call(
-                system_prompt="You generate agent configurations for Crewmatic. Output ONLY valid YAML.",
+                system_prompt="You generate agent configurations for Boletus. Output ONLY valid YAML.",
                 user_message=prompt,
                 model="sonnet",
             )
@@ -1203,7 +1203,7 @@ class CrewmaticBot:
 
     def start(self):
         """Start the bot with all loops."""
-        logger.info(f"Starting Crewmatic: {self.config.get('name', 'unnamed')}")
+        logger.info(f"Starting Boletus: {self.config.get('name', 'unnamed')}")
         logger.info(f"Agents: {list(self.agents.keys())}")
 
         self.build_channel_map()
@@ -1249,7 +1249,7 @@ class CrewmaticBot:
                     self._auto_save_leader_context(active)
                 except Exception as e:
                     logger.error(f"Failed to save context on shutdown: {e}")
-            logger.info("Crewmatic stopped.")
+            logger.info("Boletus stopped.")
             raise SystemExit(0)
 
         try:

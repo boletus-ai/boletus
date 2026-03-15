@@ -1,11 +1,11 @@
-"""Tests for crewmatic.workflows — workflow pipeline engine."""
+"""Tests for boletus.workflows — workflow pipeline engine."""
 
 import json
 import os
 import pytest
 from unittest.mock import MagicMock
 
-from crewmatic.workflows import WorkflowEngine, WorkflowStep, WorkflowRun, StepResult
+from boletus.workflows import WorkflowEngine, WorkflowStep, WorkflowRun, StepResult
 
 
 def make_config(tmp_path, workflows=None):

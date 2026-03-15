@@ -1,9 +1,9 @@
-"""Tests for crewmatic.onboarding.file_parser — file extraction and context saving."""
+"""Tests for boletus.onboarding.file_parser — file extraction and context saving."""
 
 import os
 import pytest
 
-from crewmatic.onboarding.file_parser import extract_text, save_to_context_dir, _extract_plain
+from boletus.onboarding.file_parser import extract_text, save_to_context_dir, _extract_plain
 
 
 def test_extract_plain_text():

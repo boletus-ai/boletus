@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "crewmatic"
+name = "boletus"
 version = "0.1.0"
 description = "Your first AI company — Open-source multi-agent framework that runs your business autonomously"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
-    { name = "Majny", email = "crewmatic@example.com" },
+    { name = "Majny", email = "boletus@example.com" },
 ]
 keywords = ["ai", "agents", "multi-agent", "autonomous", "slack", "claude"]
 classifiers = [
@@ -38,12 +38,12 @@ dev = [
 ]
 
 [project.scripts]
-crewmatic = "crewmatic.cli:main"
+boletus = "boletus.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Majny/crewmatic"
-Repository = "https://github.com/Majny/crewmatic"
-Issues = "https://github.com/Majny/crewmatic/issues"
+Homepage = "https://github.com/Majny/boletus"
+Repository = "https://github.com/Majny/boletus"
+Issues = "https://github.com/Majny/boletus/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

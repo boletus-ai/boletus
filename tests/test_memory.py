@@ -3,8 +3,8 @@
 import json
 import os
 
-from crewmatic.context import append_agent_memory, load_agent_memory
-from crewmatic.memory import (
+from boletus.context import append_agent_memory, load_agent_memory
+from boletus.memory import (
     append_to_section,
     build_memory_prompt,
     generate_repo_map,

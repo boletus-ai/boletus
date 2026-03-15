@@ -1,4 +1,4 @@
-"""Setup wizard — interactive Slack onboarding for new Crewmatic crews."""
+"""Setup wizard — interactive Slack onboarding for new Boletus crews."""
 
 import enum
 import logging
@@ -258,7 +258,7 @@ class SetupWizard:
         elif session.state == SetupState.COMPLETE:
             say(
                 text=(
-                    "Setup is already complete! Restart with `crewmatic run` "
+                    "Setup is already complete! Restart with `boletus run` "
                     "to bring your AI team online."
                 ),
                 channel=channel_id,
@@ -624,7 +624,7 @@ class SetupWizard:
             for var in env_vars:
                 session.collected_credentials.pop(var, None)
             say(
-                text=f"Skipping *{current['name']}* — no worries, you can connect it later by running `crewmatic init` or typing `integrations` in Slack.",
+                text=f"Skipping *{current['name']}* — no worries, you can connect it later by running `boletus init` or typing `integrations` in Slack.",
                 channel=channel_id,
                 thread_ts=thread_ts,
             )
@@ -945,7 +945,7 @@ class SetupWizard:
                     capture_output=True, timeout=10,
                 )
                 subprocess.run(
-                    ["git", "commit", "-m", "Initial commit — crewmatic setup"],
+                    ["git", "commit", "-m", "Initial commit — boletus setup"],
                     cwd=self.config_dir, capture_output=True, timeout=10,
                 )
                 logger.info("Initialized git repo for project codebase")
@@ -1060,7 +1060,7 @@ class SetupWizard:
                                 "type": "section",
                                 "text": {
                                     "type": "mrkdwn",
-                                    "text": "*Welcome to Crewmatic* :rocket:\n\nYour autonomous AI team is setting up. Send me a DM to get started!",
+                                    "text": "*Welcome to Boletus* :rocket:\n\nYour autonomous AI team is setting up. Send me a DM to get started!",
                                 },
                             },
                         ],

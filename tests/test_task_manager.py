@@ -3,7 +3,7 @@
 import os
 import tempfile
 
-from crewmatic.task_manager import TaskManager
+from boletus.task_manager import TaskManager
 
 
 def make_tm(tmp_path):
