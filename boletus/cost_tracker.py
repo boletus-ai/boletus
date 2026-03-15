@@ -77,19 +77,22 @@ class CostTracker:
         """Return a human-readable cost summary."""
         with self._lock:
             s = self._stats
-            lines = [f"Total calls: {s['total_calls']} | Estimated cost: ${s['total_estimated_cost']:.2f}"]
+            lines = [
+                f"Total calls: {s['total_calls']}",
+                f"Note: Using Claude Max subscription — no per-call API costs.",
+            ]
 
             if s["agents"]:
                 lines.append("\nPer agent:")
                 for name, data in sorted(s["agents"].items()):
-                    lines.append(f"  {name.upper()}: {data['calls']} calls (${data['estimated_cost']:.2f})")
+                    lines.append(f"  {name.upper()}: {data['calls']} calls")
 
             # Last 7 days
             daily = sorted(s.get("daily", {}).items(), reverse=True)[:7]
             if daily:
                 lines.append("\nLast 7 days:")
                 for day, data in daily:
-                    lines.append(f"  {day}: {data['calls']} calls (${data['estimated_cost']:.2f})")
+                    lines.append(f"  {day}: {data['calls']} calls")
 
             return "\n".join(lines)
 

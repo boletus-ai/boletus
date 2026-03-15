@@ -619,7 +619,7 @@ class SetupWizard:
         token = text.strip()
 
         # Skip if user says "skip"
-        if token.lower() in ("skip", "later", "next"):
+        if token.lower().startswith(("skip", "later", "next", "no ", "nope", "not now")):
             # Remove any partially-collected vars for this integration
             for var in env_vars:
                 session.collected_credentials.pop(var, None)

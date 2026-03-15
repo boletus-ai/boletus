@@ -734,8 +734,8 @@ class BoletusBot:
                 lines.append(f"  *{run.workflow_name}* — {passed}/{total} steps complete ({run.status})")
             return "Active workflows:\n" + "\n".join(lines)
 
-        if text_lower == "costs" or text_lower == "cost":
-            return f"Cost Tracker\n\n{self.cost_tracker.get_summary()}"
+        if text_lower in ("costs", "cost", "usage"):
+            return f"Usage\n\n{self.cost_tracker.get_summary()}"
 
         if text_lower == "team":
             lines = []
@@ -757,22 +757,13 @@ class BoletusBot:
 
         if text_lower == "help":
             return (
-                "*What's happening?*\n"
-                "  `tasks` — What everyone is working on right now\n"
-                "  `my tasks` — Tasks for this channel's agent\n"
-                "  `team` — Who's on the team and their roles\n"
-                "  `files` — All local files the team created\n"
-                "  `links` — Notion pages, GitHub repos, designs — all URLs\n"
-                "  `status` — Current project status\n"
-                "\n*Actions:*\n"
+                "  `tasks` — What everyone is working on\n"
+                "  `team` — Who's on the team\n"
+                "  `files` — Files the team created\n"
+                "  `links` — Notion, GitHub, and other URLs\n"
                 "  `report` — Ask CEO for a progress report\n"
-                "  `hire <description>` — Add a new team member\n"
-                "  `cancel #42 reason` — Cancel a task\n"
-                "  `stop` — Pause the project\n"
-                "  `start <project>` — Resume a project\n"
-                "\n*Settings:*\n"
-                "  `integrations` — Connect services (GitHub, Notion, etc.)\n"
-                "  `costs` — API usage tracker\n"
+                "  `usage` — How many Claude calls each agent made\n"
+                "  `cancel #42` — Cancel a task\n"
                 "\nOr just type a message — the agent in this channel will respond."
             )
 
