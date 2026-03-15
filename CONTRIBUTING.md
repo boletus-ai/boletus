@@ -1,4 +1,4 @@
-# Contributing to Crewmatic
+# Contributing to Boletus
 
 ## Dev Environment Setup
 
