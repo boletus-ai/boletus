@@ -179,6 +179,37 @@ def _extract_priority(task_desc: str) -> tuple[str, str]:
     return task_desc, "medium"
 
 
+def _split_title_details(text: str, max_title_len: int = 80) -> tuple[str, str]:
+    """Split task text into a short title and remaining details.
+
+    The first sentence (split on '. ', newline, or bullet) becomes the title
+    candidate, truncated at the last word boundary before *max_title_len*.
+    The rest becomes details.
+    """
+    if len(text) <= max_title_len:
+        return text, ""
+
+    # Find first sentence boundary
+    split_pos = len(text)
+    for sep in (". ", "\n", "•"):
+        idx = text.find(sep)
+        if idx != -1 and idx < split_pos:
+            split_pos = idx
+
+    title_candidate = text[:split_pos].strip()
+
+    if len(title_candidate) > max_title_len:
+        # Truncate at last word boundary
+        truncated = title_candidate[:max_title_len]
+        last_space = truncated.rfind(" ")
+        if last_space > 0:
+            truncated = truncated[:last_space]
+        title_candidate = truncated.rstrip(".,;:!? ")
+
+    details = text[len(title_candidate):].lstrip(". \n•").strip()
+    return title_candidate, details
+
+
 def handle_delegations(
     source_agent: str,
     response: str,
@@ -227,7 +258,8 @@ def handle_delegations(
         if len(cleaned_desc.strip()) < 5:
             cleaned_desc = task_desc
         logger.info(f"Delegation: {source_agent} -> {target_agent} [{priority}]: {cleaned_desc[:80]}")
-        add_task_fn(cleaned_desc, assigned_to=target_agent, created_by=source_agent, priority=priority)
+        title, details = _split_title_details(cleaned_desc)
+        add_task_fn(title, assigned_to=target_agent, created_by=source_agent, priority=priority, details=details)
 
     # Find delegations to agents that don't exist — these are hire requests
     unknown = parse_unknown_delegations(response, agent_names)

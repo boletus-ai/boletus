@@ -1,11 +1,11 @@
 """Scheduled loops — planning, worker execution, and reporting."""
 
 import logging
+import re
 import time
 from datetime import datetime
 
 from .agent_loader import AgentConfig, get_leader, get_delegation_targets, get_effective_channel
-from .context import append_agent_memory
 from .delegation import parse_delegations
 from . import memory as _memory
 
@@ -127,6 +127,12 @@ MEMORY — update your knowledge:
 - If something important happened that other team members need to know (new API endpoint,
   deployment URL, architecture change), update memory/_shared.md under the right section.
 - If you learned something from a failure or rejection, add it to ## Lessons Learned.
+
+PROOF OF WORK — your response MUST include:
+- If you created files: the exact file paths and a snippet of content
+- If you ran commands: paste the actual terminal output
+- Do NOT say "I created X" without showing evidence. Responses without
+  proof will be REJECTED by your reviewer.
 
 IMPORTANT — If you hit a blocker or realize the approach is wrong:
 1. Describe what you tried and why it failed
@@ -321,7 +327,17 @@ class Scheduler:
 
                 # Execute the task
                 exec_template = self._get_template("task_execution", DEFAULT_TASK_EXECUTION_TEMPLATE)
-                exec_prompt = exec_template.format(
+                # Inject role-specific preamble for managers
+                role_preamble = ""
+                if agent.role in ("leader", "manager"):
+                    role_preamble = (
+                        "YOU ARE A MANAGER. Your primary job is to DELEGATE, not do everything yourself.\n"
+                        "Before doing hands-on work, ask: can I break this into sub-tasks for specialists?\n"
+                        "If the task touches more than 2 files or multiple technology layers, you MUST delegate.\n"
+                        "Your output should be delegation commands (@agent: task), not 500 lines of code.\n"
+                        "Exception: small tasks or scaffolding that takes <30 min are fine to do yourself.\n\n"
+                    )
+                exec_prompt = role_preamble + exec_template.format(
                     task_title=task_title,
                     task_details=task.get("details", "None"),
                     created_by=task.get("created_by", "leader").upper(),
@@ -448,6 +464,12 @@ class Scheduler:
                 logger.error(f"[{agent_name.upper()}] Work loop error: {e}")
                 time.sleep(poll_interval)
 
+    @staticmethod
+    def _extract_claimed_files(result: str) -> list[str]:
+        """Extract file paths mentioned in a task result."""
+        pattern = re.compile(r'(?:^|[\s`"\'])(/[\w./-]+\.[\w]+|\.?/[\w./-]+\.[\w]+)', re.MULTILINE)
+        return list(dict.fromkeys(pattern.findall(result)))  # deduplicated, order-preserved
+
     def _verify_task_result(
         self,
         reviewer_name: str,
@@ -461,13 +483,24 @@ class Scheduler:
 
         Returns True if approved, False if rejected (task should be retried).
         """
+        claimed_files = self._extract_claimed_files(result)
+        files_section = ""
+        if claimed_files:
+            files_list = "\n".join(f"  - {f}" for f in claimed_files[:20])
+            files_section = f"\n\n**Claimed files:**\n{files_list}\n"
+
         prompt = (
             f"Your team member {worker_name.upper()} completed task #{task_id}:\n\n"
             f"**Task:** {task_title}\n\n"
             f"**Result:**\n{result[:2000]}\n\n"
-            f"Review this result. Does it meet the task requirements?\n"
-            f"- If YES: respond with APPROVED and a brief note.\n"
-            f"- If NO: respond with REJECTED and specific feedback on what needs to change.\n"
+            f"{files_section}"
+            f"REVIEW CHECKLIST:\n"
+            f"1. Does the result actually address the task requirements?\n"
+            f"2. Is there proof of work (file snippets, command output, test results)?\n"
+            f"3. Use Glob/Read/Bash to verify claimed files actually exist.\n"
+            f"4. If they say 'I created X' but show no evidence → REJECT.\n\n"
+            f"- If APPROVED: respond with APPROVED and a brief note.\n"
+            f"- If REJECTED: respond with REJECTED and specific feedback on what needs to change.\n"
             f"  Then delegate the fix back: @{worker_name}: specific fix instructions\n\n"
             f"Start your response with either APPROVED or REJECTED."
         )
@@ -490,6 +523,10 @@ class Scheduler:
                 delegations = parse_delegations(review, set(self.agents.keys()))
                 if not delegations:
                     self.task_manager.reset_task(task_id, feedback=review[:500])
+                # Persist rejection as a lesson for the worker
+                memory_dir = self.config.get("memory_dir", "./memory")
+                lesson = f"Task #{task_id} rejected by {reviewer_name}: {review[:200]}"
+                _memory.append_to_section(worker_name, memory_dir, "Lessons Learned", lesson)
                 return False
 
             # Approved (default if unclear)

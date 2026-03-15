@@ -104,7 +104,7 @@ def test_unknown_delegations_bold_pattern():
 
 def test_handle_delegations_returns_unknown():
     tasks_added = []
-    def mock_add(title, assigned_to=None, created_by=None, priority="medium"):
+    def mock_add(title, assigned_to=None, created_by=None, priority="medium", details=""):
         tasks_added.append((title, assigned_to))
 
     response = "@cto: build the API\n@data_analyst: analyze conversion funnel metrics"

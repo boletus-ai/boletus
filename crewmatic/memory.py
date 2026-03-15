@@ -6,10 +6,24 @@ import json
 import logging
 import os
 import re
+import threading
 import time
+from collections import deque
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Per-file lock for thread-safe memory writes
+_file_locks: dict[str, threading.Lock] = {}
+_file_locks_lock = threading.Lock()
+
+
+def _get_file_lock(filepath: str) -> threading.Lock:
+    """Get or create a lock for a specific file path."""
+    with _file_locks_lock:
+        if filepath not in _file_locks:
+            _file_locks[filepath] = threading.Lock()
+        return _file_locks[filepath]
 
 SECTIONS = ["Decisions", "Lessons Learned", "Active Context", "Task Log"]
 
@@ -68,31 +82,33 @@ def append_to_section(agent_name: str, memory_dir: str, section: str, entry: str
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     timestamped_entry = f"- [{timestamp}] {entry}"
 
-    try:
-        with open(memory_file) as f:
-            content = f.read()
-    except OSError as e:
-        logger.error(f"Failed to read memory for {agent_name}: {e}")
-        return
+    lock = _get_file_lock(memory_file)
+    with lock:
+        try:
+            with open(memory_file) as f:
+                content = f.read()
+        except OSError as e:
+            logger.error(f"Failed to read memory for {agent_name}: {e}")
+            return
 
-    sections = parse_structured_memory(content)
-    sections[section].append(timestamped_entry)
+        sections = parse_structured_memory(content)
+        sections[section].append(timestamped_entry)
 
-    # Task Log: keep only last 20 entries
-    if section == "Task Log" and len(sections["Task Log"]) > 20:
-        sections["Task Log"] = sections["Task Log"][-20:]
+        # Task Log: keep only last 20 entries
+        if section == "Task Log" and len(sections["Task Log"]) > 20:
+            sections["Task Log"] = sections["Task Log"][-20:]
 
-    # Rebuild the file
-    try:
-        with open(memory_file, "w") as f:
-            for sec_name in SECTIONS:
-                f.write(f"## {sec_name}\n")
-                entries = sections.get(sec_name, [])
-                for e in entries:
-                    f.write(f"{e}\n")
-                f.write("\n")
-    except OSError as e:
-        logger.error(f"Failed to write memory for {agent_name}: {e}")
+        # Rebuild the file
+        try:
+            with open(memory_file, "w") as f:
+                for sec_name in SECTIONS:
+                    f.write(f"## {sec_name}\n")
+                    entries = sections.get(sec_name, [])
+                    for e in entries:
+                        f.write(f"{e}\n")
+                    f.write("\n")
+        except OSError as e:
+            logger.error(f"Failed to write memory for {agent_name}: {e}")
 
 
 def build_memory_prompt(agent_name: str, memory_dir: str, max_chars: int = 8000) -> str:
@@ -235,11 +251,9 @@ def get_recent_decisions(data_dir: str, limit: int = 10) -> str:
     filepath = os.path.join(data_dir, "decisions.jsonl")
     try:
         with open(filepath) as f:
-            lines = f.readlines()
+            recent = deque(f, maxlen=limit)
     except FileNotFoundError:
         return ""
-
-    recent = lines[-limit:]
     parts: list[str] = []
     for line in recent:
         line = line.strip()

@@ -1106,7 +1106,7 @@ class CrewmaticBot:
         """Generate and add a new agent based on natural language request."""
         try:
             import yaml
-            from .onboarding.prompts import ADD_AGENT_PROMPT
+            from .onboarding.prompts import ADD_AGENT_PROMPT, _get_role_hints
             from .onboarding.crew_generator import merge_agent_into_config
 
             # Get current agents as YAML for context
@@ -1115,9 +1115,20 @@ class CrewmaticBot:
                 for name, a in self.agents.items()
             }})
 
+            # Extract likely agent name from request for role hints
+            role_hints = ""
+            import re as _re
+            name_match = _re.search(r"called\s+'(\w+)'", request_text)
+            if name_match:
+                role_hints = _get_role_hints(name_match.group(1))
+            elif request_text:
+                # Try first word of request as fallback
+                role_hints = _get_role_hints(request_text.split()[0] if request_text.split() else "")
+
             prompt = ADD_AGENT_PROMPT.format(
                 request=request_text,
                 existing_agents_yaml=existing_agents,
+                role_hints=role_hints,
             )
 
             response = self.claude.call(

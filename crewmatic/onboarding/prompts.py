@@ -190,6 +190,67 @@ understand the architecture, then continue building from where the team left off
 
 Output ONLY the YAML. No commentary, no fences."""
 
+WORKER_ROLE_HINTS: dict[str, str] = {
+    "backend": (
+        "- Design clean REST/GraphQL APIs with proper status codes and error responses.\n"
+        "- Write unit and integration tests for every endpoint.\n"
+        "- Handle errors gracefully — never expose stack traces to users.\n"
+        "- Follow git workflow: feature branches, small commits, meaningful messages."
+    ),
+    "frontend": (
+        "- Build reusable, composable components.\n"
+        "- Ensure responsive design across mobile, tablet, and desktop.\n"
+        "- Follow accessibility best practices (ARIA labels, keyboard nav, contrast).\n"
+        "- Manage state cleanly — avoid prop drilling, use context or state libraries."
+    ),
+    "tester": (
+        "- Read the source code BEFORE writing tests — understand what you are testing.\n"
+        "- Write unit tests, integration tests, AND edge-case tests.\n"
+        "- Run all tests and report results with actual output.\n"
+        "- Cover error paths and boundary conditions, not just happy paths."
+    ),
+    "devops": (
+        "- Build reproducible CI/CD pipelines with clear stage separation.\n"
+        "- Use Docker for consistent environments — multi-stage builds for production.\n"
+        "- Set up monitoring and health checks for all services.\n"
+        "- Never hardcode secrets — use environment variables or secret managers."
+    ),
+    "content": (
+        "- Research the target audience before writing.\n"
+        "- Optimize for SEO: keywords, meta descriptions, internal linking.\n"
+        "- Structure content with clear headings, short paragraphs, and CTAs.\n"
+        "- Match brand tone and voice consistently."
+    ),
+    "designer": (
+        "- Start with user needs — define personas and user flows before visuals.\n"
+        "- Create wireframes before high-fidelity mockups.\n"
+        "- Follow accessibility guidelines (WCAG 2.1 AA minimum).\n"
+        "- Deliver assets in formats developers can use directly."
+    ),
+    "data": (
+        "- Design normalized schemas with proper indexes and constraints.\n"
+        "- Write reversible migrations — always include up AND down.\n"
+        "- Add indexes for frequently queried columns.\n"
+        "- Create seed scripts for development and testing environments."
+    ),
+    "sales": (
+        "- Research prospects thoroughly before outreach — personalize every message.\n"
+        "- Personalize outreach based on prospect's industry, role, and pain points.\n"
+        "- Track all activities — calls, emails, responses, next steps.\n"
+        "- Use data to refine targeting and messaging over time."
+    ),
+}
+
+
+def _get_role_hints(agent_name: str) -> str:
+    """Match agent_name substrings against WORKER_ROLE_HINTS keys."""
+    name_lower = agent_name.lower()
+    for key, hints in WORKER_ROLE_HINTS.items():
+        if key in name_lower:
+            return hints
+    return ""
+
+
 ADD_AGENT_PROMPT = """\
 A manager is hiring a new agent to join the team.
 
@@ -217,6 +278,10 @@ the hiring manager (e.g. if CTO with channel "engineering" hires, the worker get
 should get [github]. Design agents (ux_ui, designer) should get [figma, canva]. Content agents \
 (content_writer, copywriter) should get [canva, gamma]. Only include integrations that are in the \
 existing global integrations list.
+
+ROLE-SPECIFIC GUIDANCE for this type of worker:
+{role_hints}
+Use these as a starting point — adapt to the specific business context.
 
 Output ONLY the YAML block (agent_name: followed by its config). No fences, no explanation."""
 
