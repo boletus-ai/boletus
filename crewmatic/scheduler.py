@@ -7,6 +7,7 @@ from datetime import datetime
 from .agent_loader import AgentConfig, get_leader, get_delegation_targets, get_effective_channel
 from .context import append_agent_memory
 from .delegation import parse_delegations
+from . import memory as _memory
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,13 @@ Save your work to files in the project directory. Do NOT just post text to Slack
 Report exactly what you did, what files you created/modified, and what the result is.
 Include any test/verification output to prove the code works.
 
+MEMORY — update your knowledge:
+- If you made a KEY DECISION (tech stack, architecture, approach), write it to your
+  ## Decisions section in your memory file.
+- If something important happened that other team members need to know (new API endpoint,
+  deployment URL, architecture change), update memory/_shared.md under the right section.
+- If you learned something from a failure or rejection, add it to ## Lessons Learned.
+
 IMPORTANT — If you hit a blocker or realize the approach is wrong:
 1. Describe what you tried and why it failed
 2. Suggest an alternative approach
@@ -205,8 +213,8 @@ class Scheduler:
 
         # Persist planning decisions to leader memory
         memory_dir = self.config.get("memory_dir", "./memory")
-        append_agent_memory(
-            leader.name, memory_dir,
+        _memory.append_to_section(
+            leader.name, memory_dir, "Decisions",
             f"Planning session — delegated tasks:\n{response[:500]}",
         )
         return response
@@ -242,8 +250,8 @@ class Scheduler:
 
         # Persist standup synthesis to leader memory
         memory_dir = self.config.get("memory_dir", "./memory")
-        append_agent_memory(
-            leader.name, memory_dir,
+        _memory.append_to_section(
+            leader.name, memory_dir, "Active Context",
             f"Standup synthesis:\n{response[:500]}",
         )
 
@@ -272,8 +280,8 @@ class Scheduler:
 
         # Persist report to leader memory
         memory_dir = self.config.get("memory_dir", "./memory")
-        append_agent_memory(
-            leader.name, memory_dir,
+        _memory.append_to_section(
+            leader.name, memory_dir, "Task Log",
             f"Progress report sent to owner:\n{response[:500]}",
         )
 
@@ -324,6 +332,13 @@ class Scheduler:
                     exec_prompt += (
                         f"\n\nPREVIOUS ATTEMPT WAS REJECTED. Manager feedback:\n{rejection}\n"
                         f"Address this feedback in your new attempt."
+                    )
+                # Warn about repeated attempts
+                claim_gen = task.get("claim_generation", 0)
+                if claim_gen > 2:
+                    exec_prompt += (
+                        f"\n\nWARNING: This task has been attempted {claim_gen} times. "
+                        f"Read previous feedback carefully."
                     )
                 response = self.call_agent(agent_name, exec_prompt)
 
@@ -410,8 +425,8 @@ class Scheduler:
                     # Auto-persist to memory
                     memory_dir = self.config.get("memory_dir", "./memory")
                     summary = response[:300].strip()
-                    append_agent_memory(
-                        agent_name, memory_dir,
+                    _memory.append_to_section(
+                        agent_name, memory_dir, "Task Log",
                         f"Completed task #{task_id}: {task_title}\n\nResult: {summary}",
                     )
                 else:

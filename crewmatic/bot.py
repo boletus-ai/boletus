@@ -340,6 +340,8 @@ class CrewmaticBot:
             saved_context=saved_ctx,
             owner_channel=None,  # Shared channels — don't exclude team messages
             cache_ttl=self.settings.get("cache_ttl", 300),
+            data_dir=self.config["data_dir"],
+            codebase_path=self.project_manager.get_project_codebase() or "",
         )
 
         # Determine cwd — use project codebase if available

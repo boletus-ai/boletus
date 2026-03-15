@@ -7,6 +7,8 @@ import os
 import time
 from typing import TYPE_CHECKING
 
+from . import memory as _memory
+
 if TYPE_CHECKING:
     from slack_sdk import WebClient
 
@@ -27,52 +29,16 @@ def _cached(key: str, loader, ttl: int = 300) -> str:
 
 
 def load_agent_memory(agent_name: str, memory_dir: str) -> str:
-    """Read agent's persistent memory file."""
-    memory_file = os.path.join(memory_dir, f"{agent_name}.md")
-    try:
-        with open(memory_file) as f:
-            return f.read()
-    except FileNotFoundError:
-        return ""
+    """Read agent's persistent memory file (delegates to memory module)."""
+    return _memory.build_memory_prompt(agent_name, memory_dir)
 
 
 def append_agent_memory(agent_name: str, memory_dir: str, entry: str) -> None:
-    """Append a timestamped entry to an agent's memory file.
+    """Append a timestamped entry to an agent's Task Log section.
 
-    This is called automatically after task completion so agents
-    maintain a persistent log even if they don't self-update.
+    Thin wrapper around memory.append_to_section for backward compatibility.
     """
-    from datetime import datetime
-
-    os.makedirs(memory_dir, exist_ok=True)
-    memory_file = os.path.join(memory_dir, f"{agent_name}.md")
-
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    block = f"\n\n## [{timestamp}]\n{entry}\n"
-
-    # Append — don't overwrite agent's own edits
-    try:
-        with open(memory_file, "a") as f:
-            f.write(block)
-    except OSError as e:
-        logger.error(f"Failed to write memory for {agent_name}: {e}")
-
-    # Trim if file gets too large (keep last 50KB)
-    try:
-        size = os.path.getsize(memory_file)
-        if size > 50_000:
-            with open(memory_file) as f:
-                content = f.read()
-            # Keep the last ~40KB (trim from front)
-            trimmed = content[-40_000:]
-            # Find first heading to avoid mid-entry cut
-            idx = trimmed.find("\n## [")
-            if idx > 0:
-                trimmed = trimmed[idx:]
-            with open(memory_file, "w") as f:
-                f.write(f"# {agent_name.upper()} — Memory (auto-trimmed)\n{trimmed}")
-    except OSError:
-        pass
+    _memory.append_to_section(agent_name, memory_dir, "Task Log", entry)
 
 
 def load_slack_context(client: WebClient, channel_name_to_id: dict, context_channel: str = "context") -> str:
@@ -159,6 +125,8 @@ def build_prompt(
     saved_context: str = "",
     owner_channel: str | None = None,
     cache_ttl: int = 300,
+    data_dir: str = "",
+    codebase_path: str = "",
 ) -> str:
     """Assemble the full prompt with all context injections.
 
@@ -175,6 +143,8 @@ def build_prompt(
         saved_context: Saved working context from previous sessions.
         owner_channel: Agent's own channel name (excluded from team channels).
         cache_ttl: Cache TTL in seconds for Slack API calls.
+        data_dir: Path to data directory (for decisions log).
+        codebase_path: Path to project codebase (for repo map).
 
     Returns:
         Fully assembled prompt string.
@@ -224,6 +194,24 @@ def build_prompt(
     if memory:
         prompt += f"\n\n=== YOUR MEMORY (from previous sessions) ---\n{memory}\n=== END MEMORY ==="
         prompt += f"\n\nIMPORTANT: After completing your task, UPDATE your memory file at {memory_dir}/{agent_name}.md with what you learned, decided, or completed. Keep it concise."
+
+    # Shared knowledge
+    if "shared_knowledge" in receives_context:
+        shared = _memory.load_shared_knowledge(memory_dir)
+        if shared:
+            prompt += f"\n\n=== SHARED TEAM KNOWLEDGE ===\n{shared}\n=== END SHARED KNOWLEDGE ==="
+
+    # Code map
+    if "code_map" in receives_context and codebase_path:
+        code_map = _memory.generate_repo_map(codebase_path)
+        if code_map:
+            prompt += f"\n\n=== PROJECT FILE MAP ===\n{code_map}\n=== END FILE MAP ==="
+
+    # Recent decisions
+    if "decisions" in receives_context and data_dir:
+        decisions = _memory.get_recent_decisions(data_dir)
+        if decisions:
+            prompt += f"\n\n=== RECENT TEAM DECISIONS ===\n{decisions}\n=== END DECISIONS ==="
 
     # Task board
     if task_summary and task_summary not in ("No tasks.", "No open tasks."):

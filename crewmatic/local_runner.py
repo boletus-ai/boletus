@@ -89,6 +89,8 @@ class LocalRunner:
             saved_context=saved_ctx,
             owner_channel=agent.channel,
             cache_ttl=self.settings.get("cache_ttl", 300),
+            data_dir=self.config.get("data_dir", ""),
+            codebase_path=self.project_manager.get_project_codebase() or "",
         )
 
         cwd = self.project_manager.get_project_codebase() or self.config.get("_config_dir")

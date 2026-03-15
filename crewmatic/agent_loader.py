@@ -61,10 +61,12 @@ def load_agents(config: dict) -> dict[str, AgentConfig]:
 def _default_context_for_role(role: str) -> list[str]:
     """Default context injection based on agent role."""
     if role == "leader":
-        return ["business_context", "team_channels", "project_context", "saved_context"]
+        return ["business_context", "team_channels", "project_context", "saved_context",
+                "shared_knowledge", "decisions"]
     if role == "manager":
-        return ["team_channels", "project_context"]
-    return ["project_context"]
+        return ["team_channels", "project_context",
+                "shared_knowledge", "code_map", "decisions"]
+    return ["project_context", "shared_knowledge", "code_map"]
 
 
 def get_leader(agents: dict[str, AgentConfig]) -> AgentConfig | None:
