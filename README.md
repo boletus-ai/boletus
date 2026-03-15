@@ -1,4 +1,4 @@
-# Boletus
+# Boletus 🍄
 
 **Your first AI company** — open-source framework that runs an autonomous AI team via Slack + Claude CLI.
 
@@ -16,48 +16,38 @@ Send a business plan to your CEO agent. It hires a team, delegates tasks, writes
 ### 1. Install
 
 ```bash
-git clone https://github.com/boletus-ai/boletus.git
-cd boletus
-./install.sh
+pip install boletus
 ```
 
-The script creates a virtual environment, installs dependencies, and walks you through connecting Slack:
-
-```
-=== Slack Setup ===
-
-1. Go to https://api.slack.com/apps
-2. Click 'Create New App' > 'From a manifest'
-3. Select your workspace
-4. Paste the contents of slack-app-manifest.json
-5. Click 'Create'
-
-Now get your tokens:
-
-  App Token: Basic Information > App-Level Tokens > Generate
-  Paste App Token (xapp-...): ****
-
-  Bot Token: Install App > Install to Workspace > copy
-  Paste Bot Token (xoxb-...): ****
-
-  Your Slack User ID: click your profile > three dots > Copy member ID
-  Paste Member ID (U...): U12345678
-
-Saved tokens to .env
-```
-
-### 2. Start
+### 2. Create a project & connect Slack
 
 ```bash
-source .venv/bin/activate
+mkdir my-ai-company && cd my-ai-company
+boletus init
+```
+
+This walks you through connecting Slack:
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps) → "From a manifest" → paste `slack-app-manifest.json`
+2. Paste your App Token (`xapp-...`) and Bot Token (`xoxb-...`)
+3. Paste your Slack Member ID
+
+### 3. Start your AI team
+
+```bash
 boletus setup
 ```
 
-The wizard DMs you in Slack, asks about your business, generates `crew.yaml`, creates channels, and starts the team.
+The wizard DMs you in Slack, asks about your business, generates the team config, creates channels, and starts everything.
 
-### 3. Send a business plan
+Upload a business plan PDF or describe what you want to build — the AI team takes it from there.
 
-Go to `#ceo` in Slack and tell the CEO what to build. The team starts working autonomously.
+### 4. Watch it work
+
+- `#ceo` — strategy, delegation, progress reports
+- `#engineering` — CTO builds the product, hires devs
+- `#growth` — CMO runs marketing, hires content writers
+
+Type `help` in any channel for available commands.
 
 ## How it works
 
@@ -81,7 +71,7 @@ You: "Build a SaaS for restaurant analytics"
 5. **Auto-testing** — after code tasks, test tasks are auto-created
 6. **Manager review** — CTO/CMO approve or reject worker output with feedback
 7. **Auto-hiring** — agents create new roles on the fly when workload demands it
-8. **Self-correction** — workers escalate blockers, managers reassess strategy
+8. **Self-correction** — workers escalate blockers, fix tasks auto-created
 
 ### Dynamic team
 
@@ -89,7 +79,7 @@ Start with 3 agents (CEO, CTO, CMO). They hire more as needed:
 
 ```
 CEO writes: @sales_rep: Build a list of 50 target companies and start outreach
-→ system auto-creates sales_rep agent, Slack channel, starts working
+→ system auto-creates sales_rep agent, starts working
 
 CTO writes: @tester: Write integration tests for the payment API
 → system auto-creates tester agent, assigns first task
@@ -99,66 +89,44 @@ No manual configuration needed — the team grows organically.
 
 ## Slack commands
 
-| Command | Description |
+| Command | What it does |
 |---------|-------------|
-| `tasks` | Show task board |
-| `team` | Show current team structure |
-| `files` | Show all workspace files and artifacts |
-| `costs` | Show cost tracker (per agent, per day) |
-| `report` | Run progress report |
-| `standup` | Run team standup |
+| `tasks` | What everyone is working on |
 | `my tasks` | Tasks for this channel's agent |
-| `cancel #42 reason` | Cancel a task |
-| `start <project>` | Activate a project |
-| `stop` | Stop current project |
-| `status` | Project status |
-| `integrations` | Manage integrations |
-| `help` | List all commands |
+| `team` | Who's on the team and their roles |
+| `files` | All local files the team created |
+| `links` | Notion pages, GitHub repos, designs — all URLs |
+| `report` | Ask CEO for a progress report |
+| `hire <description>` | Add a new team member |
+| `help` | All available commands |
 
-## CLI commands
+## CLI
 
 ```bash
-boletus setup         # Recommended — Slack wizard creates team + channels + starts bot
-boletus run           # Start the bot (requires crew.yaml)
-boletus run -v        # Start with debug logging
-boletus init          # Manual — creates default crew.yaml + .env interactively
-boletus validate      # Check crew.yaml without starting
-boletus agents        # List configured agents
-boletus tasks         # Show task board
-boletus doctor        # Check prerequisites
+boletus setup       # Slack wizard — creates team + channels + starts bot
+boletus run         # Resume where you left off
+boletus init        # Manual setup — creates crew.yaml + .env
+boletus doctor      # Check prerequisites
+boletus validate    # Verify crew.yaml
+boletus agents      # List configured agents
+boletus tasks       # Show task board
 ```
 
-## Integrations (24 services)
+## Integrations (27 services)
 
 Three tiers — zero to full setup:
 
 | Tier | Setup | Examples |
 |------|-------|----------|
-| **Claude.ai Connectors** | Connect once in claude.ai | Gmail, Notion, Figma, Canva, Gamma, Calendar, PostHog, Cloudflare, Miro, Granola |
-| **CLI tools** | Token in .env | GitHub (`gh`), AWS (`aws`), Stripe (`stripe`) |
+| **Claude.ai Connectors** | Connect once at claude.ai | Gmail, Notion, Figma, Canva, Gamma, Calendar, PostHog, Cloudflare, Miro |
+| **CLI tools** | Token in .env | GitHub (`gh`), AWS (`aws`), Stripe (`stripe`), Vercel |
 | **Local MCP** | Auto-configured | PostgreSQL, custom servers |
 
-### How integrations work
-
-Boletus agents run via Claude CLI on your machine. When an agent needs to send an email or read a Notion page, it uses Claude's built-in connectors — the same ones you see in [claude.ai](https://claude.ai).
-
-**Claude.ai Connectors** (Gmail, Notion, Figma, etc.) — your agents use whatever services you've connected in your Claude account. No API keys needed. To set up:
-
-1. Go to [claude.ai/settings](https://claude.ai/settings) → **Integrations**
-2. Connect the services you want (Gmail, Notion, Google Calendar, etc.)
-3. That's it — any agent with that integration in `crew.yaml` gets automatic access
-
-Your agents will be able to read emails, create drafts, search Notion, create Canva designs, and more — all through your connected accounts.
-
-**CLI tools** (GitHub, AWS, Stripe) — these need API tokens because agents use the actual CLI tools (`gh`, `aws`, `stripe`). The setup wizard asks for these during `boletus setup`.
-
-**Local MCP** (PostgreSQL, custom) — auto-spawned MCP server processes for direct database access.
-
-Agents automatically get the right tools based on their role and integrations configured in `crew.yaml`.
+Your agents use whatever services you've connected in your Claude account — no API keys needed for Claude.ai connectors. CLI tools are configured during `boletus setup`.
 
 ## Configuration
 
-Everything lives in `crew.yaml`:
+Everything lives in `crew.yaml` (auto-generated by the setup wizard):
 
 ```yaml
 name: "My AI Company"
@@ -170,105 +138,34 @@ slack:
 owner:
   slack_id: ${OWNER_SLACK_ID}
 
-integrations: [github, gmail, notion, figma, canva, gamma]
+git:
+  author_name: "AI Team"
+  author_email: "ai@example.com"
+  github_org: "my-org"  # repos created under this org
 
-agents:
-  ceo:
-    channel: "ceo"
-    model: "opus"
-    role: "leader"
-    delegates_to: [cto, cmo]
-    system_prompt: |
-      You are the CEO. Run this company autonomously...
-
-  cto:
-    channel: "cto"
-    model: "opus"
-    role: "manager"
-    reports_to: ceo
-    integrations: [github]
-    system_prompt: |
-      You are the CTO. Own all technical decisions...
-
-  cmo:
-    channel: "cmo"
-    model: "sonnet"
-    role: "worker"
-    reports_to: ceo
-    integrations: [gmail, canva, gamma, figma]
-    system_prompt: |
-      You are the CMO. Marketing, growth, content...
+integrations: [github, gmail, notion, figma, canva]
 
 projects:
   my-app:
     name: "My App"
-    codebase: "."  # agents write code here (relative to crew.yaml)
+    codebase: "./my-app"
 
-# Optional: custom MCP servers for any API
+# Custom MCP servers
 # mcp_servers:
 #   my-api:
 #     command: "npx"
 #     args: ["-y", "@my-org/my-mcp-server"]
-#     env:
-#       API_KEY: "${MY_API_KEY}"
-```
-
-### Agent roles
-
-| Role | What it does |
-|------|-------------|
-| `leader` | Plans work, delegates, sends reports, hires new agents |
-| `manager` | Reviews worker output (approve/reject), can hire sub-team |
-| `worker` | Picks tasks from board, executes, reports results |
-
-### Settings
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `max_concurrent_agents` | 4 | Max parallel Claude CLI processes |
-| `worker_poll_interval` | 60 | Seconds between task board checks |
-| `planning_interval` | 1800 | Seconds between planning runs |
-| `planning_threshold` | 3 | Plan more when open tasks < this |
-| `report_hours` | [9, 16, 22] | Hours for scheduled reports |
-| `stuck_timeout_minutes` | 10 | Reset stuck tasks after this |
-
-## Architecture
-
-```
-boletus/
-├── bot.py             # Slack orchestration — wires everything together
-├── scheduler.py       # Planning, worker, and report loops
-├── delegation.py      # @agent: task parsing + auto-hire detection
-├── task_manager.py    # JSON task board with atomic operations
-├── cost_tracker.py    # Per-agent cost tracking
-├── integrations.py    # 24-service catalog (Claude.ai MCP + CLI + local)
-├── claude_runner.py   # Claude CLI subprocess with concurrency control
-├── context.py         # Memory + context injection
-├── agent_loader.py    # crew.yaml → AgentConfig
-├── config.py          # YAML loading + validation
-├── project_manager.py # Multi-project context switching
-├── guardrails.py      # Circuit breaker + execution guard
-├── workflows.py       # Multi-step workflow pipelines
-└── onboarding/        # Slack setup wizard + crew generator
 ```
 
 ## Safety
 
-- **Circuit breaker** — agents auto-pause after consecutive failures (auto-reset after 10 min)
-- **Manager review gate** — worker output verified before marking complete
+- **Circuit breaker** — agents auto-pause after consecutive failures
+- **Manager review** — worker output verified before marking complete
 - **Auto-test loop** — code tasks automatically get a follow-up test task
-- **Escalation** — workers flag blockers, fix tasks auto-created (not dead-end)
-- **Fuzzy dedup** — prevents CEO from re-delegating the same task with slightly different wording
-- **Stuck task backoff** — exponential backoff prevents planning death loops
-- **Event deduplication** — Slack at-least-once delivery doesn't cause duplicate agent calls
-- **Subprocess timeout + kill** — Claude CLI processes killed on timeout (no zombies)
-
-When agents have `tools` configured, Boletus passes `--dangerously-skip-permissions` to Claude CLI. Set `skip_permissions: false` in settings to disable.
-
-## Examples
-
-- **[startup](examples/startup/)** — AI company with CEO, CTO, CMO (dynamic hiring enabled)
-- **[dev-team](examples/dev-team/)** — Minimal dev team (Lead, Frontend, Backend)
+- **Escalation** — workers flag blockers, fix tasks auto-created
+- **Fuzzy dedup** — prevents re-delegating the same task
+- **Stuck task backoff** — exponential backoff prevents planning loops
+- **Structured memory** — agents learn from rejections, share knowledge cross-team
 
 ## License
 
