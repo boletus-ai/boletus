@@ -476,6 +476,21 @@ class BoletusBot:
         if new_agent_name in self.agents:
             return
 
+        # Reject names that don't look like agent roles
+        # (e.g., company names like "keboola", "apify", status words like "approved")
+        role_keywords = (
+            "dev", "engineer", "designer", "writer", "analyst", "manager",
+            "lead", "specialist", "ops", "admin", "tester", "security",
+            "content", "seo", "sales", "support", "data", "ml", "ai",
+            "frontend", "backend", "fullstack", "devops", "qa", "ux", "ui",
+            "growth", "marketing", "product", "research", "strategy",
+        )
+        looks_like_role = any(kw in new_agent_name for kw in role_keywords)
+        has_underscore = "_" in new_agent_name
+        if not looks_like_role and not has_underscore:
+            logger.info(f"Skipping auto-hire '{new_agent_name}' — doesn't look like an agent role name")
+            return
+
         logger.info(f"Auto-hiring: {hiring_manager} wants to create agent '{new_agent_name}' for: {first_task[:80]}")
 
         self.post_to_channel(
@@ -1136,6 +1151,10 @@ class BoletusBot:
                 user_message=prompt,
                 model="sonnet",
             )
+
+            # Strip markdown fences if LLM wrapped output in ```yaml
+            from .onboarding.crew_generator import _strip_yaml_fences
+            response = _strip_yaml_fences(response)
 
             # Parse the response as YAML
             agent_data = yaml.safe_load(response)

@@ -110,6 +110,11 @@ def parse_unknown_delegations(response: str, known_names: set[str]) -> list[tupl
             "step", "steps", "phase", "option", "options", "next",
             "revenue", "cost", "costs", "budget", "target", "metric",
             "metrics", "timeline", "deadline", "risk", "risks",
+            # Review/status words that agents use in responses
+            "approved", "rejected", "done", "completed", "blocked",
+            "escalation", "review", "verified", "confirmed", "cancelled",
+            # Company/person names should not be agents
+            "kuba", "owner", "investor", "board", "client", "customer",
         ):
             continue
         # Skip if task text looks like a table row (starts with |)
