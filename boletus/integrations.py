@@ -41,6 +41,8 @@ CATALOG = {
             "You have GitHub access via `gh` CLI and git.\n"
             "Use `gh repo create`, `gh pr create`, `gh issue create`, `gh issue list` etc.\n"
             "IMPORTANT: Always create PRIVATE repos (`gh repo create --private`). Never make repos public unless the owner explicitly asks.\n"
+            "When creating repos, check if a GitHub org is configured in crew.yaml under git.github_org. "
+            "If set, create repos under that org: `gh repo create ORG/REPO --private`.\n"
             "Use `git clone/commit/push` for code. GITHUB_TOKEN is set in your environment.\n"
             "Always use feature branches, never push directly to main."
         ),

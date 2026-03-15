@@ -402,6 +402,17 @@ class BoletusBot:
                     f"under '{project_name}'. Never create orphaned pages."
                 )
 
+        # If agent has GitHub, inject org name for repo creation
+        if "github" in agent_integrations:
+            git_config = self.config.get("git", {})
+            github_org = git_config.get("github_org", "")
+            if github_org:
+                system_prompt += (
+                    f"\n\nGITHUB ORG: Always create repos under the '{github_org}' organization: "
+                    f"`gh repo create {github_org}/<name> --private`. "
+                    f"Never create repos under your personal account."
+                )
+
         # Append Claude.ai MCP tool patterns to allowed_tools
         # Always ensure agents have tools — without --allowedTools the subprocess
         # prompts interactively and hangs in headless mode
