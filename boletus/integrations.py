@@ -40,6 +40,7 @@ CATALOG = {
         "agent_instructions": (
             "You have GitHub access via `gh` CLI and git.\n"
             "Use `gh repo create`, `gh pr create`, `gh issue create`, `gh issue list` etc.\n"
+            "IMPORTANT: Always create PRIVATE repos (`gh repo create --private`). Never make repos public unless the owner explicitly asks.\n"
             "Use `git clone/commit/push` for code. GITHUB_TOKEN is set in your environment.\n"
             "Always use feature branches, never push directly to main."
         ),

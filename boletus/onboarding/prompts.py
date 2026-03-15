@@ -164,8 +164,8 @@ Include one of these based on the user's input:
    a) If the user has NO existing code (pre-seed, new idea):
       context should say: "Greenfield project. No code exists yet. CTO: on your first task, \
 create the project structure (git init, package.json/requirements.txt, src/ directory, README). \
-If GitHub integration is enabled, create a repo with `gh repo create <name> --public --source=.` \
-and push the initial commit."
+If GitHub integration is enabled, create a PRIVATE repo with `gh repo create <name> --private --source=.` \
+and push the initial commit. Only make repos public if the owner explicitly requests it."
    b) If the user mentioned an existing GitHub repo URL:
       context should say: "Existing codebase. CTO: on your first task, clone the repo with \
 `git clone <url> .` and analyze the codebase before making changes. Read the README, understand \

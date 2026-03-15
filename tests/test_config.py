@@ -9,9 +9,9 @@ from boletus.config import load_config, _interpolate_env
 
 
 def test_interpolate_env():
-    os.environ["TEST_CREWMATIC_VAR"] = "hello"
-    assert _interpolate_env("token: ${TEST_CREWMATIC_VAR}") == "token: hello"
-    del os.environ["TEST_CREWMATIC_VAR"]
+    os.environ["TEST_BOLETUS_VAR"] = "hello"
+    assert _interpolate_env("token: ${TEST_BOLETUS_VAR}") == "token: hello"
+    del os.environ["TEST_BOLETUS_VAR"]
 
 
 def test_load_minimal_config(tmp_path):

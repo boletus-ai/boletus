@@ -1,6 +1,6 @@
 {
   "display_information": {
-    "name": "Crewmatic",
+    "name": "Boletus",
     "description": "Your autonomous AI team",
     "background_color": "#1a1a2e"
   },
@@ -11,7 +11,7 @@
       "messages_tab_read_only_enabled": false
     },
     "bot_user": {
-      "display_name": "Crewmatic",
+      "display_name": "Boletus",
       "always_online": true
     }
   },
