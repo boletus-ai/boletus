@@ -150,12 +150,14 @@ Publish or send back for revisions. You are the quality gate for all content."
      "NEVER generate or invent URLs to external services. Do not fabricate links to Notion, Google Docs, or any other platform."
 
 6. ALWAYS include a projects: section. The AI team builds real software — they need a \
-codebase to write code into.
+codebase to write code into. The codebase MUST be a subdirectory named after the project \
+(e.g. "./loopdesk"), NOT "." — the root directory contains crew.yaml and config files \
+that agents must not modify.
    projects:
      <project-key>:
        name: "<project name>"
        description: "<what the project is>"
-       codebase: "."
+       codebase: "./<project-key>"
        context: |
          <brief project context — tech stack, what to build first>
 
@@ -163,13 +165,15 @@ codebase to write code into.
 Include one of these based on the user's input:
    a) If the user has NO existing code (pre-seed, new idea):
       context should say: "Greenfield project. No code exists yet. CTO: on your first task, \
-create the project structure (git init, package.json/requirements.txt, src/ directory, README). \
-If GitHub integration is enabled, create a PRIVATE repo with `gh repo create <name> --private --source=.` \
-and push the initial commit. Only make repos public if the owner explicitly requests it."
+create the project directory, initialize git, set up the project structure \
+(package.json/requirements.txt, src/ directory, README). \
+If GitHub integration is enabled, create a PRIVATE repo with \
+`gh repo create <name> --private --source=. && git push -u origin main` \
+from inside the project directory. Only make repos public if the owner explicitly requests it."
    b) If the user mentioned an existing GitHub repo URL:
       context should say: "Existing codebase. CTO: on your first task, clone the repo with \
-`git clone <url> .` and analyze the codebase before making changes. Read the README, understand \
-the architecture, then continue building."
+`git clone <url> <project-dir>` and analyze the codebase before making changes. Read the README, \
+understand the architecture, then continue building."
    c) If the user mentioned an existing local codebase:
       context should say: "Existing local codebase. CTO: read the existing code first, \
 understand the architecture, then continue building from where the team left off."
