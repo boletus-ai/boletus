@@ -210,12 +210,12 @@ def cmd_init(args):
         print()
         print("  App Token: Basic Information > scroll to 'App-Level Tokens'")
         print("  > Generate Token and Scopes > add 'connections:write' > Generate")
-        app_token = _prompt("Paste your App Token (xapp-...)", secret=True)
+        app_token = _prompt("Paste your App Token (xapp-...)")
         env_vars["SLACK_APP_TOKEN"] = app_token
         print()
         print()
         print("  Bot Token: Install App (left menu) > Install to Workspace > copy Bot Token")
-        bot_token = _prompt("Paste your Bot Token (xoxb-...)", secret=True)
+        bot_token = _prompt("Paste your Bot Token (xoxb-...)")
         env_vars["SLACK_BOT_TOKEN"] = bot_token
         print()
 
@@ -237,7 +237,7 @@ def cmd_init(args):
         print("     (just check these two boxes, leave everything else unchecked)")
         print("  5. Click 'Generate token' > copy the ghp_... value")
         print()
-        gh_token = _prompt("Paste GitHub token (or press Enter to skip)", required=False, secret=True)
+        gh_token = _prompt("Paste GitHub token (or press Enter to skip)", required=False)
         if gh_token:
             env_vars["GITHUB_TOKEN"] = gh_token
         print()
@@ -265,10 +265,11 @@ def cmd_init(args):
         os.makedirs(d, exist_ok=True)
 
     print()
-    print("Setup complete! Next:")
-    print("  1. Edit crew.yaml to customize your team (optional)")
-    print("  2. Run: boletus run")
-    print("  3. Go to #ceo in Slack and send your business plan")
+    print("Ready! Next step:")
+    print()
+    print("  boletus setup")
+    print()
+    print("This starts a Slack wizard that builds your AI team automatically.")
     print()
     return 0
 
