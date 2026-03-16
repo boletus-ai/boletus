@@ -379,6 +379,37 @@ class BoletusBot:
                 "This is a safety policy — do not bypass it."
             )
 
+        # Tell agent exactly which services they have access to
+        global_integrations = self.config.get("integrations", [])
+        all_available = set(global_integrations)
+        if agent_integrations:
+            all_available.update(agent_integrations)
+
+        # Build explicit "you have / you don't have" list
+        service_awareness = []
+        key_services = {
+            "gmail": ("send emails, create drafts", "NO email access — save outreach as files and tell the owner to send manually or enable Gmail via `integrations`"),
+            "github": ("push code, create repos, PRs", "NO GitHub access — save code locally, tell the owner to enable GitHub via `integrations`"),
+            "notion": ("create pages, search docs", "NO Notion access — save docs as local files"),
+            "figma": ("read designs, export assets", "NO Figma access"),
+            "canva": ("create designs, presentations", "NO Canva access — describe what you need designed"),
+            "stripe": ("manage payments, subscriptions", "NO Stripe access"),
+        }
+        has_list = []
+        missing_list = []
+        for service, (has_desc, missing_desc) in key_services.items():
+            if service in all_available:
+                has_list.append(f"  {service}: {has_desc}")
+            else:
+                missing_list.append(f"  {service}: {missing_desc}")
+
+        service_block = ""
+        if has_list:
+            service_block += "\nYou HAVE access to:\n" + "\n".join(has_list)
+        if missing_list:
+            service_block += "\nYou do NOT have:\n" + "\n".join(missing_list)
+            service_block += "\nDo NOT pretend to use services you don't have. Be honest about limitations."
+
         # Output format guardrails
         system_prompt += (
             "\n\nOUTPUT RULES:"
@@ -390,6 +421,8 @@ class BoletusBot:
             "the tool response. Never make up URLs."
             "\n- Keep messages concise. Use bullet points over long paragraphs."
         )
+        if service_block:
+            system_prompt += f"\n\nSERVICE ACCESS:{service_block}"
 
         # If agent has Notion, inject project name for organized page hierarchy
         if "notion" in agent_integrations:
