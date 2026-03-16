@@ -677,9 +677,10 @@ class BoletusBot:
             if old_project and old_project != project_key:
                 self._auto_save_leader_context(old_project)
             if self.project_manager.start_project(project_key):
+                self.scheduler.paused = False
                 saved_ctx = self.project_manager.load_project_context_file(project_key)
                 ctx_msg = f" Loaded saved context ({len(saved_ctx)} chars)." if saved_ctx else ""
-                return f"Started project: {project_key}.{ctx_msg}"
+                return f"Started project: {project_key}. All agents resumed.{ctx_msg}"
             return f"Unknown project: {project_key}. Use 'projects' to see available ones."
 
         if text_lower == "stop":
@@ -687,9 +688,10 @@ class BoletusBot:
             if old_project:
                 self._auto_save_leader_context(old_project)
             prev = self.project_manager.stop_project()
+            self.scheduler.paused = True
             if prev:
-                return f"Stopped project {prev}. Context saved."
-            return "Already idle."
+                return f"Stopped project {prev}. All agents paused. Context saved.\nType `start {prev}` to resume."
+            return "All agents paused.\nType `start <project>` to resume."
 
         if text_lower == "status":
             return self.project_manager.get_status()
