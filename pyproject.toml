@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "boletus"
-version = "0.1.5"
+version = "0.2.0"
 description = "Your first AI company — Open-source multi-agent framework that runs your business autonomously"
 readme = "README.md"
 license = "MIT"

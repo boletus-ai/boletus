@@ -1,6 +1,6 @@
 """Boletus — Your first AI company."""
 
-__version__ = "0.1.5"
+__version__ = "0.2.0"
 
 # Lightweight imports (no external dependencies)
 from .agent_loader import AgentConfig, load_agents, get_leader
