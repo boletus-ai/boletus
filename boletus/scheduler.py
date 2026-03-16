@@ -166,6 +166,7 @@ class Scheduler:
         self.handle_delegations = handle_delegations_fn
         self.guardrails = guardrails
         self.cost_summary_fn = cost_summary_fn
+        self.paused = False  # Set by 'stop' command to pause all loops
 
         owner = config.get("owner", {})
         self.owner_mention = owner.get("slack_id", "")
@@ -300,6 +301,11 @@ class Scheduler:
 
         while True:
             try:
+                # Paused by 'stop' command
+                if self.paused:
+                    time.sleep(30)
+                    continue
+
                 # Check guardrails before claiming work
                 if self.guardrails:
                     allowed, reason = self.guardrails.can_execute(agent_name)
@@ -637,6 +643,11 @@ class Scheduler:
         last_archive = 0.0
 
         while True:
+            # Paused by 'stop' command — wait until resumed
+            if self.paused:
+                time.sleep(30)
+                continue
+
             # Plan if: there are tasks to manage OR a project is active
             has_work = (
                 self.project_manager.is_active()
