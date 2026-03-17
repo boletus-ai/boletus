@@ -60,8 +60,8 @@ You: "Build a SaaS for restaurant analytics"
    │ (plans) │     │            │<────│(execute) │
    └─────────┘     └────────────┘     └──────────┘
         │                                    │
-        ├── hires @cfo, @sales_rep...       │
-        └──────── Slack channels ───────────┘
+        ├── hires @cfo, @sales_rep...        │
+        └──────── Slack channels ────────────┘
 ```
 
 1. **CEO** receives your business plan, breaks it into tasks, delegates
